@@ -1,32 +1,21 @@
-//
-//  Pocket_Catch_RaterApp.swift
-//  Pocket Catch Rater
-//
-//  Created by Spencer Ross on 6/8/26.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
 struct Pocket_Catch_RaterApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    @State private var dataStore: PokemonDataStore
 
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    init() {
+        let database = try! PokemonDatabase()
+        let repository = PokemonRepository(database: database)
+        _dataStore = State(initialValue: PokemonDataStore(repository: repository))
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(dataStore: dataStore)
+                .task {
+                    await dataStore.bootstrap()
+                }
         }
-        .modelContainer(sharedModelContainer)
     }
 }

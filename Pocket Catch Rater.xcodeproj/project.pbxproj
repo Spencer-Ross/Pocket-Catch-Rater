@@ -8,6 +8,7 @@
 
 /* Begin PBXFileReference section */
 		853041422FD7438E00F5B12F /* Pocket Catch Rater.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pocket Catch Rater.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		853041602FD7440000F5B12F /* Pocket Catch RaterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Pocket Catch RaterTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,13 +17,37 @@
 			path = "Pocket Catch Rater";
 			sourceTree = "<group>";
 		};
+		853041612FD7440000F5B12F /* Pocket Catch RaterTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Pocket Catch RaterTests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXContainerItemProxy section */
+		853041622FD7440000F5B12F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8530413A2FD7438E00F5B12F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 853041412FD7438E00F5B12F;
+			remoteInfo = "Pocket Catch Rater";
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		8530413F2FD7438E00F5B12F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8530416E2FD7440000F5B12F /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		853041642FD7440000F5B12F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8530416F2FD7440000F5B12F /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,6 +58,7 @@
 			isa = PBXGroup;
 			children = (
 				853041442FD7438E00F5B12F /* Pocket Catch Rater */,
+				853041612FD7440000F5B12F /* Pocket Catch RaterTests */,
 				853041432FD7438E00F5B12F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +67,7 @@
 			isa = PBXGroup;
 			children = (
 				853041422FD7438E00F5B12F /* Pocket Catch Rater.app */,
+				853041602FD7440000F5B12F /* Pocket Catch RaterTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -65,10 +92,35 @@
 			);
 			name = "Pocket Catch Rater";
 			packageProductDependencies = (
+				8530416C2FD7440000F5B12F /* GRDB */,
 			);
 			productName = "Pocket Catch Rater";
 			productReference = 853041422FD7438E00F5B12F /* Pocket Catch Rater.app */;
 			productType = "com.apple.product-type.application";
+		};
+		853041662FD7440000F5B12F /* Pocket Catch RaterTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 853041672FD7440000F5B12F /* Build configuration list for PBXNativeTarget "Pocket Catch RaterTests" */;
+			buildPhases = (
+				853041682FD7440000F5B12F /* Sources */,
+				853041642FD7440000F5B12F /* Frameworks */,
+				853041692FD7440000F5B12F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8530416A2FD7440000F5B12F /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				853041612FD7440000F5B12F /* Pocket Catch RaterTests */,
+			);
+			name = "Pocket Catch RaterTests";
+			packageProductDependencies = (
+				8530416D2FD7440000F5B12F /* GRDB */,
+			);
+			productName = "Pocket Catch RaterTests";
+			productReference = 853041602FD7440000F5B12F /* Pocket Catch RaterTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -83,6 +135,10 @@
 					853041412FD7438E00F5B12F = {
 						CreatedOnToolsVersion = 26.5;
 					};
+					853041662FD7440000F5B12F = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 853041412FD7438E00F5B12F;
+					};
 				};
 			};
 			buildConfigurationList = 8530413D2FD7438E00F5B12F /* Build configuration list for PBXProject "Pocket Catch Rater" */;
@@ -94,18 +150,29 @@
 			);
 			mainGroup = 853041392FD7438E00F5B12F;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8530416B2FD7440000F5B12F /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 853041432FD7438E00F5B12F /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				853041412FD7438E00F5B12F /* Pocket Catch Rater */,
+				853041662FD7440000F5B12F /* Pocket Catch RaterTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		853041402FD7438E00F5B12F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		853041692FD7440000F5B12F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +189,47 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		853041682FD7440000F5B12F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8530416A2FD7440000F5B12F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 853041412FD7438E00F5B12F /* Pocket Catch Rater */;
+			targetProxy = 853041622FD7440000F5B12F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXBuildFile section */
+		8530416E2FD7440000F5B12F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8530416C2FD7440000F5B12F /* GRDB */; };
+		8530416F2FD7440000F5B12F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8530416D2FD7440000F5B12F /* GRDB */; };
+/* End PBXBuildFile section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = SourcePackages/checkouts/GRDB.swift;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8530416C2FD7440000F5B12F /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		8530416D2FD7440000F5B12F /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		8530414D2FD7439000F5B12F /* Debug */ = {
@@ -310,6 +417,42 @@
 			};
 			name = Release;
 		};
+		853041702FD7440000F5B12F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7UNVRB9VP6;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "Spencer-Ross.Pocket-Catch-RaterTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pocket Catch Rater.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pocket Catch Rater";
+			};
+			name = Debug;
+		};
+		853041712FD7440000F5B12F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7UNVRB9VP6;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "Spencer-Ross.Pocket-Catch-RaterTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pocket Catch Rater.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pocket Catch Rater";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -327,6 +470,15 @@
 			buildConfigurations = (
 				853041502FD7439000F5B12F /* Debug */,
 				853041512FD7439000F5B12F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		853041672FD7440000F5B12F /* Build configuration list for PBXNativeTarget "Pocket Catch RaterTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				853041702FD7440000F5B12F /* Debug */,
+				853041712FD7440000F5B12F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
