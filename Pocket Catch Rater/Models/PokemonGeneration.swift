@@ -73,6 +73,15 @@ nonisolated enum GameSyncSource: Sendable, Equatable, Hashable {
             "last_sync_source_pokedex_\(pokedexID)"
         }
     }
+
+    var rosterMetadataKey: String {
+        switch self {
+        case .generation(let generation):
+            "roster_source_generation_\(generation)"
+        case .pokedex(let pokedexID):
+            "roster_source_pokedex_\(pokedexID)"
+        }
+    }
 }
 
 nonisolated enum CaptureFormulaFamily: Sendable {

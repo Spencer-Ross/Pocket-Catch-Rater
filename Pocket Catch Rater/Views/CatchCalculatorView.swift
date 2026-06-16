@@ -362,7 +362,7 @@ struct CatchCalculatorView: View {
         inputs.generation = dataGeneration
         ensureValidBallSelection()
 
-        guard let species = inputs.species else {
+        guard let species = inputs.species, species.hasDetails else {
             catchResult = nil
             return
         }

@@ -69,7 +69,7 @@ final class PokemonDataStore {
         }
     }
 
-    /// Ensures data is usable for a generation without blocking on network when cache can satisfy it.
+    /// Ensures roster data is usable for a generation without blocking on full species downloads.
     func ensureGameData(for gameGeneration: PokemonGeneration) async {
         if (try? repository.hasPlayableData(for: gameGeneration)) == true {
             return
@@ -83,12 +83,16 @@ final class PokemonDataStore {
             return
         }
 
-        guard (try? repository.needsNetworkSync(for: gameGeneration)) == true else {
+        guard (try? repository.needsRosterSync(for: gameGeneration)) == true else {
             return
         }
 
         enqueueSync(for: gameGeneration)
         startSyncWorkerIfNeeded()
+    }
+
+    func ensureSpeciesDetails(for speciesID: Int) async throws -> PokemonSpecies {
+        try await repository.ensureSpeciesDetails(speciesID: speciesID)
     }
 
     func species(in gameGeneration: PokemonGeneration) throws -> [PokemonSpecies] {
@@ -135,8 +139,8 @@ final class PokemonDataStore {
     }
 
     private func enqueueSync(for gameGeneration: PokemonGeneration) {
-        guard (try? repository.needsGameSync(for: gameGeneration)) == true
-            || (try? repository.needsNetworkSync(for: gameGeneration)) == true else {
+        guard (try? repository.needsRosterSync(for: gameGeneration)) == true
+            || (try? repository.hasPlayableData(for: gameGeneration)) == false else {
             return
         }
 
@@ -159,7 +163,7 @@ final class PokemonDataStore {
 
                 guard let nextGeneration else { break }
 
-                await self.syncGameData(for: nextGeneration, replacingState: false)
+                await self.syncRoster(for: nextGeneration, replacingState: false)
             }
 
             await MainActor.run {
@@ -171,10 +175,52 @@ final class PokemonDataStore {
         }
     }
 
+    private func syncRoster(for gameGeneration: PokemonGeneration, replacingState: Bool) async {
+        if (try? repository.rebuildGameDataLocally(for: gameGeneration)) == true,
+           (try? repository.hasPlayableData(for: gameGeneration)) == true,
+           (try? repository.needsRosterSync(for: gameGeneration)) == false {
+            refreshCacheStats()
+            if case .idle = syncState {
+                syncState = .ready(source: .api)
+            }
+            return
+        }
+
+        guard !syncState.isSyncing else {
+            enqueueSync(for: gameGeneration)
+            return
+        }
+
+        syncState = .syncing(generation: gameGeneration.rawValue, completed: 0, total: 1)
+
+        do {
+            let result = try await repository.syncRoster(for: gameGeneration)
+
+            syncState = .ready(source: .api)
+            refreshCacheStats()
+
+            if result.speciesCount == 0 {
+                syncState = .failed("No species returned for \(gameGeneration.displayName).")
+            }
+        } catch {
+            if replacingState || (try? repository.speciesCount()) == 0 {
+                _ = try? repository.loadSeedFallbackIfNeeded()
+                if (try? repository.speciesCount()) ?? 0 > 0 {
+                    syncState = .ready(source: .seedFallback)
+                    refreshCacheStats()
+                    startSyncWorkerIfNeeded()
+                    return
+                }
+            }
+            syncState = .failed(error.localizedDescription)
+            refreshCacheStats()
+        }
+    }
+
     private func syncGameData(for gameGeneration: PokemonGeneration, replacingState: Bool) async {
         if (try? repository.rebuildGameDataLocally(for: gameGeneration)) == true,
            (try? repository.hasPlayableData(for: gameGeneration)) == true,
-           (try? repository.needsNetworkSync(for: gameGeneration)) == false {
+           (try? repository.needsFullNetworkSync(for: gameGeneration)) == false {
             refreshCacheStats()
             if case .idle = syncState {
                 syncState = .ready(source: .api)

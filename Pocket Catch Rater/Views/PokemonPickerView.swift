@@ -10,6 +10,7 @@ struct PokemonPickerView: View {
     @State private var searchText = ""
     @State private var species: [PokemonSpecies] = []
     @State private var isLoading = false
+    @State private var loadingSpeciesID: Int?
 
     var body: some View {
         NavigationStack {
@@ -36,10 +37,10 @@ struct PokemonPickerView: View {
                             ForEach(species) { entry in
                                 PokemonGridCell(
                                     species: entry,
-                                    isSelected: selectedSpecies?.id == entry.id
+                                    isSelected: selectedSpecies?.id == entry.id,
+                                    isLoadingDetails: loadingSpeciesID == entry.id
                                 ) {
-                                    selectedSpecies = entry
-                                    dismiss()
+                                    Task { await selectSpecies(entry) }
                                 }
                             }
                         }
@@ -97,11 +98,33 @@ struct PokemonPickerView: View {
     private func reloadSpeciesFromCache() {
         species = (try? dataStore.search(name: searchText, in: gameGeneration)) ?? []
     }
+
+    private func selectSpecies(_ entry: PokemonSpecies) async {
+        guard loadingSpeciesID == nil else { return }
+
+        if entry.hasDetails {
+            selectedSpecies = entry
+            dismiss()
+            return
+        }
+
+        loadingSpeciesID = entry.id
+        defer { loadingSpeciesID = nil }
+
+        do {
+            let detailed = try await dataStore.ensureSpeciesDetails(for: entry.id)
+            selectedSpecies = detailed
+            dismiss()
+        } catch {
+            // Keep picker open so the user can retry or pick another species.
+        }
+    }
 }
 
 private struct PokemonGridCell: View {
     let species: PokemonSpecies
     let isSelected: Bool
+    var isLoadingDetails = false
     let action: () -> Void
 
     private let tapThreshold: CGFloat = 12
@@ -121,8 +144,15 @@ private struct PokemonGridCell: View {
 
     private var cellContent: some View {
         VStack(spacing: 6) {
-            RemoteSpriteImage(url: species.spriteURL, size: 48)
-                .frame(maxWidth: .infinity)
+            ZStack {
+                RemoteSpriteImage(url: species.spriteURL, size: 48)
+                    .frame(maxWidth: .infinity)
+
+                if isLoadingDetails {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
 
             Text("#\(species.id)")
                 .font(.caption2)
@@ -137,10 +167,12 @@ private struct PokemonGridCell: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
 
-            Text("C \(species.catchRate)")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+            if species.hasDetails {
+                Text("C \(species.catchRate)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
         }
         .padding(8)
         .frame(maxWidth: .infinity, minHeight: 112, alignment: .top)
