@@ -57,13 +57,104 @@ nonisolated final class PokemonRepository {
     }
 
     func needsGameSync(for gameGeneration: PokemonGeneration) throws -> Bool {
-        try database.metadataValue(for: Self.syncMetadataKey(for: gameGeneration)) == nil
+        try needsRosterSync(for: gameGeneration)
+    }
+
+    func needsRosterSync(for gameGeneration: PokemonGeneration) throws -> Bool {
+        try gameGeneration.syncSources.contains {
+            try database.metadataValue(for: $0.rosterMetadataKey) == nil
+        }
+    }
+
+    func hasRosterData(for gameGeneration: PokemonGeneration) throws -> Bool {
+        try gameGeneration.syncSources.allSatisfy {
+            try database.metadataValue(for: $0.rosterMetadataKey) != nil
+        }
+    }
+
+    func hasPlayableData(for gameGeneration: PokemonGeneration) throws -> Bool {
+        try database.availabilityCount(for: gameGeneration.rawValue) > 0
+    }
+
+    func hasCachedSources(for gameGeneration: PokemonGeneration) throws -> Bool {
+        try gameGeneration.syncSources.allSatisfy {
+            try database.metadataValue(for: $0.metadataKey) != nil
+        }
+    }
+
+    /// Rebuilds generation availability from locally cached API sources without network I/O.
+    @discardableResult
+    func rebuildGameDataLocally(for gameGeneration: PokemonGeneration) throws -> Bool {
+        guard try hasRosterData(for: gameGeneration) || hasCachedSources(for: gameGeneration) else {
+            return false
+        }
+
+        try database.rebuildAvailability(for: gameGeneration.rawValue)
+
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        try database.setMetadata(key: Self.syncMetadataKey(for: gameGeneration), value: timestamp)
+        try database.setMetadata(key: "data_source", value: "api")
+        try database.setMetadata(key: "total_species_count", value: String(try database.speciesCount()))
+        return true
+    }
+
+    func needsNetworkSync(for gameGeneration: PokemonGeneration) throws -> Bool {
+        try needsRosterSync(for: gameGeneration)
+    }
+
+    func needsFullNetworkSync(for gameGeneration: PokemonGeneration) throws -> Bool {
+        try gameGeneration.syncSources.contains {
+            try database.metadataValue(for: $0.metadataKey) == nil
+        }
     }
 
     func needsAnySync() throws -> Bool {
         try PokemonGeneration.allSyncSources.contains {
             try database.metadataValue(for: $0.metadataKey) == nil
         }
+    }
+
+    func species(id: Int) throws -> PokemonSpecies? {
+        try database.species(id: id)
+    }
+
+    func ensureSpeciesDetails(speciesID: Int) async throws -> PokemonSpecies {
+        if let cached = try database.species(id: speciesID), cached.hasDetails {
+            return cached
+        }
+
+        let dto = try await apiClient.fetchSpeciesDetails(speciesID)
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        try database.upsertSpeciesDetails(dto, timestamp: timestamp)
+
+        guard let updated = try database.species(id: speciesID) else {
+            throw PokeAPIError.decodingFailed
+        }
+        return updated
+    }
+
+    /// Fast roster sync: one API call per source, id + name only.
+    func syncRoster(
+        for gameGeneration: PokemonGeneration
+    ) async throws -> SyncResult {
+        let sources = gameGeneration.syncSources
+
+        for source in sources {
+            _ = try await syncRosterSourceIfNeeded(source)
+        }
+
+        try database.rebuildAvailability(for: gameGeneration.rawValue)
+
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        try database.setMetadata(key: Self.syncMetadataKey(for: gameGeneration), value: timestamp)
+
+        let availableCount = try database.availabilityCount(for: gameGeneration.rawValue)
+
+        return SyncResult(
+            generation: gameGeneration.rawValue,
+            speciesCount: availableCount,
+            errors: []
+        )
     }
 
     func syncGeneration(
@@ -189,6 +280,33 @@ nonisolated final class PokemonRepository {
         try database.clearAllData()
     }
 
+    private func syncRosterSourceIfNeeded(_ source: GameSyncSource) async throws -> Int {
+        if try database.metadataValue(for: source.rosterMetadataKey) != nil {
+            return try database.speciesCount()
+        }
+
+        let roster: [RosterEntryDTO]
+        switch source {
+        case .generation(let generation):
+            roster = try await apiClient.fetchGenerationRoster(generation)
+        case .pokedex(let pokedexID):
+            roster = try await apiClient.fetchPokedexRoster(pokedexID)
+        }
+
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        try database.upsertRosterEntries(roster, timestamp: timestamp)
+
+        if case .pokedex(let pokedexID) = source {
+            try database.replacePokedexMembership(
+                pokedexID: pokedexID,
+                speciesIDs: roster.map(\.id)
+            )
+        }
+
+        try database.setMetadata(key: source.rosterMetadataKey, value: timestamp)
+        return roster.count
+    }
+
     private func syncSourceIfNeeded(
         _ source: GameSyncSource,
         progress: (@Sendable (Int, Int) -> Void)?
@@ -218,6 +336,7 @@ nonisolated final class PokemonRepository {
         }
 
         try database.setMetadata(key: source.metadataKey, value: timestamp)
+        try database.setMetadata(key: source.rosterMetadataKey, value: timestamp)
         return uniqueSpecies.count
     }
 

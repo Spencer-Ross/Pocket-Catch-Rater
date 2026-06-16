@@ -2,6 +2,53 @@ import XCTest
 @testable import Pocket_Catch_Rater
 
 final class PokemonSyncTests: XCTestCase {
+    func testSyncRosterUpsertsStubsAndAvailability() async throws {
+        let database = try PokemonDatabase(inMemory: true)
+        let mock = MockPokemonAPIClient()
+        mock.rosterByGeneration = [
+            1: [
+                RosterEntryDTO(id: 1, name: "Bulbasaur", generation: 1),
+                RosterEntryDTO(id: 4, name: "Charmander", generation: 1),
+            ],
+        ]
+
+        let repository = PokemonRepository(database: database, apiClient: mock)
+        let result = try await repository.syncRoster(for: .gen1)
+
+        XCTAssertEqual(result.speciesCount, 2)
+        XCTAssertEqual(try repository.speciesCount(inGameGeneration: 1), 2)
+        XCTAssertEqual(mock.fetchGenerationRosterCallCount[1], 1)
+        XCTAssertEqual(mock.fetchGenerationCallCount[1], nil)
+
+        let bulbasaur = try XCTUnwrap(try repository.species(id: 1))
+        XCTAssertFalse(bulbasaur.hasDetails)
+        XCTAssertEqual(bulbasaur.catchRate, 0)
+        XCTAssertNotNil(try database.metadataValue(for: "roster_source_generation_1"))
+    }
+
+    func testEnsureSpeciesDetailsFetchesAndCaches() async throws {
+        let database = try PokemonDatabase(inMemory: true)
+        let mock = MockPokemonAPIClient()
+        mock.rosterByGeneration = [
+            1: [RosterEntryDTO(id: 25, name: "Pikachu", generation: 1)],
+        ]
+        mock.speciesDetails = [
+            25: SpeciesDTO(id: 25, name: "Pikachu", generation: 1, baseHP: 35, catchRate: 190, type1: "electric"),
+        ]
+
+        let repository = PokemonRepository(database: database, apiClient: mock)
+        _ = try await repository.syncRoster(for: .gen1)
+
+        let detailed = try await repository.ensureSpeciesDetails(speciesID: 25)
+        XCTAssertTrue(detailed.hasDetails)
+        XCTAssertEqual(detailed.catchRate, 190)
+        XCTAssertEqual(mock.fetchSpeciesDetailsCallCount[25], 1)
+
+        let cached = try await repository.ensureSpeciesDetails(speciesID: 25)
+        XCTAssertEqual(cached.catchRate, 190)
+        XCTAssertEqual(mock.fetchSpeciesDetailsCallCount[25], 1)
+    }
+
     func testSyncGenerationUpsertsSpeciesAndMetadata() async throws {
         let database = try PokemonDatabase(inMemory: true)
         let mock = MockPokemonAPIClient()
@@ -23,6 +70,9 @@ final class PokemonSyncTests: XCTestCase {
         XCTAssertNotNil(try database.metadataValue(for: "last_sync_gen_1"))
         XCTAssertEqual(try database.metadataValue(for: "data_source"), "api")
         XCTAssertFalse(progressCollector.values.isEmpty)
+
+        let bulbasaur = try XCTUnwrap(try repository.species(id: 1))
+        XCTAssertTrue(bulbasaur.hasDetails)
     }
 
     func testGen2SyncMarksAvailabilityForBothGenerations() async throws {
@@ -76,6 +126,56 @@ final class PokemonSyncTests: XCTestCase {
         XCTAssertEqual(try database.availabilityCount(for: 2), 2)
         XCTAssertEqual(try database.availabilityCount(for: 9), 1)
     }
+
+    func testRebuildGameDataLocallyUsesCachedSourcesWithoutAPI() async throws {
+        let database = try PokemonDatabase(inMemory: true)
+        let mock = MockPokemonAPIClient()
+        mock.resultsByGeneration = [
+            1: [SpeciesDTO(id: 1, name: "Bulbasaur", generation: 1, baseHP: 45, catchRate: 45)],
+            2: [SpeciesDTO(id: 152, name: "Chikorita", generation: 2, baseHP: 45, catchRate: 45)],
+        ]
+
+        let repository = PokemonRepository(database: database, apiClient: mock)
+        _ = try await repository.syncAllMissingData()
+        mock.fetchGenerationCallCount = [:]
+
+        XCTAssertTrue(try repository.rebuildGameDataLocally(for: .gen2))
+        XCTAssertEqual(try repository.speciesCount(inGameGeneration: 2), 2)
+        XCTAssertEqual(mock.fetchGenerationCallCount[1], nil)
+        XCTAssertEqual(mock.fetchGenerationCallCount[2], nil)
+    }
+
+    func testRebuildGameDataLocallyUsesCachedRosterWithoutAPI() async throws {
+        let database = try PokemonDatabase(inMemory: true)
+        let mock = MockPokemonAPIClient()
+        mock.rosterByGeneration = [
+            1: [RosterEntryDTO(id: 1, name: "Bulbasaur", generation: 1)],
+            2: [RosterEntryDTO(id: 152, name: "Chikorita", generation: 2)],
+        ]
+
+        let repository = PokemonRepository(database: database, apiClient: mock)
+        _ = try await repository.syncRoster(for: .gen2)
+        mock.fetchGenerationRosterCallCount = [:]
+
+        XCTAssertTrue(try repository.rebuildGameDataLocally(for: .gen2))
+        XCTAssertEqual(try repository.speciesCount(inGameGeneration: 2), 2)
+        XCTAssertEqual(mock.fetchGenerationRosterCallCount[1], nil)
+        XCTAssertEqual(mock.fetchGenerationRosterCallCount[2], nil)
+    }
+
+    func testHasPlayableDataReflectsAvailabilityTable() async throws {
+        let database = try PokemonDatabase(inMemory: true)
+        let mock = MockPokemonAPIClient()
+        mock.rosterByGeneration = [
+            1: [RosterEntryDTO(id: 1, name: "Bulbasaur", generation: 1)],
+        ]
+
+        let repository = PokemonRepository(database: database, apiClient: mock)
+        XCTAssertFalse(try repository.hasPlayableData(for: .gen1))
+
+        _ = try await repository.syncRoster(for: .gen1)
+        XCTAssertTrue(try repository.hasPlayableData(for: .gen1))
+    }
 }
 
 private final class ProgressCollector: @unchecked Sendable {
@@ -99,8 +199,32 @@ private final class MockPokemonAPIClient: PokemonAPIClient, @unchecked Sendable 
     var results: [SpeciesDTO] = []
     var resultsByGeneration: [Int: [SpeciesDTO]] = [:]
     var pokedexResults: [Int: [SpeciesDTO]] = [:]
+    var rosterByGeneration: [Int: [RosterEntryDTO]] = [:]
+    var rosterByPokedex: [Int: [RosterEntryDTO]] = [:]
+    var speciesDetails: [Int: SpeciesDTO] = [:]
     var fetchGenerationCallCount: [Int: Int] = [:]
     var fetchPokedexCallCount: [Int: Int] = [:]
+    var fetchGenerationRosterCallCount: [Int: Int] = [:]
+    var fetchPokedexRosterCallCount: [Int: Int] = [:]
+    var fetchSpeciesDetailsCallCount: [Int: Int] = [:]
+
+    func fetchGenerationRoster(_ generation: Int) async throws -> [RosterEntryDTO] {
+        fetchGenerationRosterCallCount[generation, default: 0] += 1
+        return rosterByGeneration[generation] ?? []
+    }
+
+    func fetchPokedexRoster(_ pokedexID: Int) async throws -> [RosterEntryDTO] {
+        fetchPokedexRosterCallCount[pokedexID, default: 0] += 1
+        return rosterByPokedex[pokedexID] ?? []
+    }
+
+    func fetchSpeciesDetails(_ speciesID: Int) async throws -> SpeciesDTO {
+        fetchSpeciesDetailsCallCount[speciesID, default: 0] += 1
+        guard let dto = speciesDetails[speciesID] else {
+            throw PokeAPIError.decodingFailed
+        }
+        return dto
+    }
 
     func fetchGeneration(
         _ generation: Int,

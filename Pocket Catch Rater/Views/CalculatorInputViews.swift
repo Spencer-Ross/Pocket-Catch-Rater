@@ -59,36 +59,48 @@ struct CompactStatusGrid: View {
     }
 }
 
-struct GenerationChipRow: View {
-    @Binding var selection: PokemonGeneration
-    var onChange: (PokemonGeneration) -> Void
+struct GenerationPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @Binding var selection: CatchRuleSet
+    var onChange: (CatchRuleSet) -> Void = { _ in }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(PokemonGeneration.allCases) { generation in
-                        Button {
-                            selection = generation
-                            onChange(generation)
-                        } label: {
-                            Text(generation.displayName)
-                                .font(.subheadline.weight(.semibold))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(selection == generation ? Color.accentColor : Color(.secondarySystemGroupedBackground))
-                                .foregroundStyle(selection == generation ? Color.white : Color.primary)
-                                .clipShape(Capsule())
+        NavigationStack {
+            List(CatchRuleSet.allCases) { ruleSet in
+                Button {
+                    selection = ruleSet
+                    onChange(ruleSet)
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(ruleSet.displayName)
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Text(ruleSet.gamesLabel)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.leading)
                         }
-                        .buttonStyle(.plain)
+                        Spacer()
+                        if selection == ruleSet {
+                            Image(systemName: "checkmark")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                        }
                     }
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 2)
+                .buttonStyle(.plain)
             }
-
-            Text(selection.gamesLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            .navigationTitle("Catch Rules")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
         }
     }
 }
@@ -142,13 +154,17 @@ struct BallConditionsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @Binding var inputs: CatchInputs
-    let generation: PokemonGeneration
+    let ruleSet: CatchRuleSet
     var onChange: () -> Void = {}
+
+    private var generationLevel: Int {
+        ruleSet.representativeGeneration.rawValue
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                if generation.rawValue >= 2 {
+                if generationLevel >= 2 {
                     Section("Level Ball") {
                         Stepper("Your Pokémon level: \(inputs.playerLevel)", value: Binding(
                             get: { inputs.playerLevel },
@@ -157,7 +173,7 @@ struct BallConditionsSheet: View {
                     }
                 }
 
-                if generation.rawValue >= 3 {
+                if generationLevel >= 3 {
                     Section("Battle") {
                         Stepper("Battle turn: \(inputs.battleTurn)", value: Binding(
                             get: { inputs.battleTurn },
@@ -177,13 +193,13 @@ struct BallConditionsSheet: View {
                     }
                 }
 
-                if generation.rawValue >= 5 {
+                if generationLevel >= 5 {
                     Section("Environment") {
                         Toggle("Thick grass / dark grass", isOn: binding(\.isThickGrass))
                     }
                 }
 
-                if generation.rawValue >= 7 {
+                if generationLevel >= 7 {
                     Section("Ultra Beasts") {
                         Toggle("Ultra Beast target", isOn: binding(\.isUltraBeast))
                     }

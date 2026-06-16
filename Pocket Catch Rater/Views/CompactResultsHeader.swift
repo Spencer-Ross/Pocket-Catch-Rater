@@ -3,7 +3,7 @@ import SwiftUI
 struct CompactResultsHeader: View {
     let result: CatchResult?
     let species: PokemonSpecies?
-    let generation: PokemonGeneration
+    let ruleSet: CatchRuleSet
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -39,13 +39,13 @@ struct CompactResultsHeader: View {
                             VStack(alignment: .trailing, spacing: 4) {
                                 statLine("Est. HP", "\(result.currentHP)/\(result.maxHP)")
                                 statLine("Species C", "\(result.speciesCatchRate)")
-                                if generation.formulaFamily == .gen1 {
+                                if ruleSet.formulaFamily == .gen1 {
                                     statLine("HP factor", "\(result.hpFactor)")
                                 } else {
                                     statLine("Mod. rate", "\(result.effectiveCatchRate)")
                                 }
                                 statLine(
-                                    generation.formulaFamily == .gen1 ? "Wobbles" : "Est. wobbles",
+                                    ruleSet.formulaFamily == .gen1 ? "Wobbles" : "Est. wobbles",
                                     "\(result.wobbleCount)"
                                 )
                             }
@@ -104,6 +104,6 @@ struct CompactResultsHeader: View {
             ballBonus: 2
         ),
         species: PokemonSpecies(id: 25, name: "Pikachu", generation: 1, baseHP: 35, catchRate: 190, type1: "electric", type2: nil),
-        generation: .gen9
+        ruleSet: .gen8to9
     )
 }

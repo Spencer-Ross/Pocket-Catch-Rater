@@ -31,10 +31,10 @@ struct SyncStatusIndicator: View {
 
     private var shouldShow: Bool {
         switch state {
-        case .idle, .ready(.api):
-            return false
-        case .syncing, .ready(.seedFallback), .failed:
+        case .syncing, .failed:
             return true
+        case .idle, .ready:
+            return false
         }
     }
 

@@ -44,11 +44,19 @@ enum HPEstimator {
 
 enum CatchCalculatorEngine {
     static func calculator(for generation: PokemonGeneration) -> CatchCalculator {
-        switch generation.formulaFamily {
+        calculator(for: generation.formulaFamily)
+    }
+
+    static func calculator(for ruleSet: CatchRuleSet) -> CatchCalculator {
+        calculator(for: ruleSet.formulaFamily)
+    }
+
+    private static func calculator(for formulaFamily: CaptureFormulaFamily) -> CatchCalculator {
+        switch formulaFamily {
         case .gen1:
             return Gen1CatchCalculator()
         default:
-            return ModernCatchCalculator(formulaFamily: generation.formulaFamily)
+            return ModernCatchCalculator(formulaFamily: formulaFamily)
         }
     }
 }

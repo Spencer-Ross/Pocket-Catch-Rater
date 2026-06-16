@@ -103,6 +103,12 @@ nonisolated struct PokemonDatabase {
             )
         }
 
+        migrator.registerMigration("v4_roster_stubs") { db in
+            try db.alter(table: "species") { t in
+                t.add(column: "has_details", .integer).notNull().defaults(to: 1)
+            }
+        }
+
         return migrator
     }
 
@@ -113,8 +119,8 @@ nonisolated struct PokemonDatabase {
             for entry in species {
                 try db.execute(
                     sql: """
-                    INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, updated_at, has_details)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
                     ON CONFLICT(id) DO UPDATE SET
                         name = excluded.name,
                         generation = excluded.generation,
@@ -122,7 +128,8 @@ nonisolated struct PokemonDatabase {
                         catch_rate = excluded.catch_rate,
                         type1 = COALESCE(excluded.type1, species.type1),
                         type2 = COALESCE(excluded.type2, species.type2),
-                        updated_at = excluded.updated_at
+                        updated_at = excluded.updated_at,
+                        has_details = 1
                     """,
                     arguments: [
                         entry.id,
@@ -136,6 +143,54 @@ nonisolated struct PokemonDatabase {
                     ]
                 )
             }
+        }
+    }
+
+    func upsertRosterEntries(_ entries: [RosterEntryDTO], timestamp: String) throws {
+        try dbQueue.write { db in
+            for entry in entries {
+                try db.execute(
+                    sql: """
+                    INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, updated_at, has_details)
+                    VALUES (?, ?, ?, 0, 0, NULL, NULL, ?, 0)
+                    ON CONFLICT(id) DO UPDATE SET
+                        name = excluded.name,
+                        generation = CASE WHEN species.has_details = 1 THEN species.generation ELSE excluded.generation END,
+                        updated_at = excluded.updated_at
+                    """,
+                    arguments: [entry.id, entry.name, entry.generation, timestamp]
+                )
+            }
+        }
+    }
+
+    func upsertSpeciesDetails(_ entry: SpeciesDTO, timestamp: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, updated_at, has_details)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    generation = excluded.generation,
+                    base_hp = excluded.base_hp,
+                    catch_rate = excluded.catch_rate,
+                    type1 = excluded.type1,
+                    type2 = excluded.type2,
+                    updated_at = excluded.updated_at,
+                    has_details = 1
+                """,
+                arguments: [
+                    entry.id,
+                    entry.name,
+                    entry.generation,
+                    entry.baseHP,
+                    entry.catchRate,
+                    entry.type1,
+                    entry.type2,
+                    timestamp,
+                ]
+            )
         }
     }
 
@@ -262,7 +317,7 @@ nonisolated struct PokemonDatabase {
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                SELECT id, name, generation, base_hp, catch_rate, type1, type2
+                SELECT id, name, generation, base_hp, catch_rate, type1, type2, has_details
                 FROM species
                 WHERE generation <= ?
                 ORDER BY id
@@ -289,7 +344,7 @@ nonisolated struct PokemonDatabase {
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                SELECT id, name, generation, base_hp, catch_rate, type1, type2
+                SELECT id, name, generation, base_hp, catch_rate, type1, type2, has_details
                 FROM species
                 WHERE generation <= ? AND name LIKE ? || '%'
                 ORDER BY id
@@ -342,7 +397,7 @@ nonisolated struct PokemonDatabase {
                 rows = try Row.fetchAll(
                     db,
                     sql: """
-                    SELECT s.id, s.name, s.generation, s.base_hp, s.catch_rate, s.type1, s.type2
+                    SELECT s.id, s.name, s.generation, s.base_hp, s.catch_rate, s.type1, s.type2, s.has_details
                     FROM species s
                     INNER JOIN species_game_availability a ON a.species_id = s.id
                     WHERE a.game_generation = ? AND s.name LIKE ? || '%'
@@ -354,7 +409,7 @@ nonisolated struct PokemonDatabase {
                 rows = try Row.fetchAll(
                     db,
                     sql: """
-                    SELECT s.id, s.name, s.generation, s.base_hp, s.catch_rate, s.type1, s.type2
+                    SELECT s.id, s.name, s.generation, s.base_hp, s.catch_rate, s.type1, s.type2, s.has_details
                     FROM species s
                     INNER JOIN species_game_availability a ON a.species_id = s.id
                     WHERE a.game_generation = ?
@@ -380,7 +435,7 @@ nonisolated struct PokemonDatabase {
             guard let row = try Row.fetchOne(
                 db,
                 sql: """
-                SELECT id, name, generation, base_hp, catch_rate, type1, type2
+                SELECT id, name, generation, base_hp, catch_rate, type1, type2, has_details
                 FROM species WHERE id = ?
                 """,
                 arguments: [id]
@@ -413,7 +468,8 @@ nonisolated struct PokemonDatabase {
             baseHP: row["base_hp"],
             catchRate: row["catch_rate"],
             type1: row["type1"],
-            type2: row["type2"]
+            type2: row["type2"],
+            hasDetails: (row["has_details"] as Int?) == 1
         )
     }
 }

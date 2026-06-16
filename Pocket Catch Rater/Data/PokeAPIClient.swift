@@ -63,6 +63,30 @@ nonisolated final class PokeAPIClient: Sendable {
         return results.sorted { $0.id < $1.id }
     }
 
+    func fetchGenerationRoster(_ generation: Int) async throws -> [RosterEntryDTO] {
+        let generationResponse: GenerationResponse = try await get("/generation/\(generation)")
+        return generationResponse.pokemonSpecies.compactMap { entry in
+            let id = entry.idFromURL
+            guard id > 0 else { return nil }
+            return RosterEntryDTO(id: id, name: entry.displayName, generation: generation)
+        }
+        .sorted { $0.id < $1.id }
+    }
+
+    func fetchPokedexRoster(_ pokedexID: Int) async throws -> [RosterEntryDTO] {
+        let pokedexResponse: PokedexResponse = try await get("/pokedex/\(pokedexID)")
+        return pokedexResponse.pokemonEntries.compactMap { entry in
+            let id = entry.speciesID
+            guard id > 0 else { return nil }
+            return RosterEntryDTO(id: id, name: entry.displayName, generation: 9)
+        }
+        .sorted { $0.id < $1.id }
+    }
+
+    func fetchSpeciesDetails(_ speciesID: Int) async throws -> SpeciesDTO {
+        try await fetchSpeciesDTO(speciesID: speciesID)
+    }
+
     func fetchPokedex(
         _ pokedexID: Int,
         progress: (@Sendable (Int, Int) -> Void)? = nil
@@ -166,6 +190,10 @@ nonisolated private struct PokedexEntry: Decodable, Sendable {
     var speciesID: Int {
         pokemonSpecies.idFromURL
     }
+
+    var displayName: String {
+        pokemonSpecies.displayName
+    }
 }
 
 nonisolated private struct GenerationResponse: Decodable, Sendable {
@@ -178,10 +206,25 @@ nonisolated private struct GenerationResponse: Decodable, Sendable {
 
 nonisolated private struct NamedResource: Decodable, Sendable {
     let url: String
+    let name: String?
 
     var idFromURL: Int {
         let trimmed = url.hasSuffix("/") ? String(url.dropLast()) : url
         return Int(trimmed.split(separator: "/").last ?? "0") ?? 0
+    }
+
+    var displayName: String {
+        if let name {
+            return Self.formatName(name)
+        }
+        let slug = url.split(separator: "/").last.map(String.init) ?? ""
+        return Self.formatName(slug)
+    }
+
+    private static func formatName(_ raw: String) -> String {
+        raw.split(separator: "-").map { part in
+            part.prefix(1).uppercased() + part.dropFirst()
+        }.joined(separator: "-")
     }
 }
 

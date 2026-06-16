@@ -5,7 +5,28 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section("Sync") {
+            NavigationLink {
+                SyncSettingsView(dataStore: dataStore)
+            } label: {
+                HStack {
+                    Text("Sync Settings")
+                    Spacer()
+                    if dataStore.syncState.isSyncing {
+                        ProgressView()
+                    }
+                }
+            }
+        }
+        .navigationTitle("Settings")
+    }
+}
+
+private struct SyncSettingsView: View {
+    @Bindable var dataStore: PokemonDataStore
+
+    var body: some View {
+        List {
+            Section {
                 Button {
                     Task { await dataStore.syncAllMissingData() }
                 } label: {
@@ -38,6 +59,28 @@ struct SettingsView: View {
                     Task { await dataStore.clearCacheAndResync() }
                 }
                 .disabled(dataStore.syncState.isSyncing)
+            } footer: {
+                Text("Full sync downloads catch rates and stats for every Pokémon. The app works without this — rosters load automatically and details fetch when you pick a species.")
+            }
+
+            Section {
+                NavigationLink("Cache & Status") {
+                    SyncInfoView(dataStore: dataStore)
+                }
+            }
+        }
+        .navigationTitle("Sync Settings")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SyncInfoView: View {
+    @Bindable var dataStore: PokemonDataStore
+
+    var body: some View {
+        List {
+            Section("Status") {
+                Text(syncStatusText)
             }
 
             Section("Cache Stats") {
@@ -55,12 +98,9 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
-            Section("Status") {
-                Text(syncStatusText)
-            }
         }
-        .navigationTitle("Settings")
+        .navigationTitle("Cache & Status")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             dataStore.refreshCacheStats()
         }

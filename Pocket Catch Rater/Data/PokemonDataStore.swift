@@ -8,7 +8,8 @@ final class PokemonDataStore {
     private(set) var cacheStats: CacheStats?
 
     private let repository: PokemonRepository
-    private var backgroundSyncTask: Task<Void, Never>?
+    private var syncWorkerTask: Task<Void, Never>?
+    private var pendingSyncGenerations: [PokemonGeneration] = []
 
     init(repository: PokemonRepository) {
         self.repository = repository
@@ -17,17 +18,25 @@ final class PokemonDataStore {
     func bootstrap() async {
         do {
             let usedSeed = try repository.loadSeedFallbackIfNeeded()
+            refreshCacheStats()
+
             if usedSeed {
                 syncState = .ready(source: .seedFallback)
+            } else if (try? repository.hasPlayableData(for: .gen1)) == true {
+                syncState = .ready(source: .api)
+            } else if (try? repository.rebuildGameDataLocally(for: .gen1)) == true {
+                syncState = .ready(source: .api)
+                refreshCacheStats()
+            } else {
+                syncState = .idle
             }
-            refreshCacheStats()
         } catch {
             syncState = .failed(error.localizedDescription)
             return
         }
 
-        await syncGameData(for: .gen1, replacingState: true)
-        startBackgroundFullSyncIfNeeded()
+        enqueueSync(for: .gen1)
+        startSyncWorkerIfNeeded()
     }
 
     func syncGeneration(_ generation: Int) async {
@@ -39,6 +48,7 @@ final class PokemonDataStore {
         await syncGameData(for: gameGeneration, replacingState: false)
     }
 
+    /// Downloads every uncached PokeAPI source. Only triggered from Settings.
     func syncAllMissingData() async {
         guard !syncState.isSyncing else { return }
 
@@ -59,10 +69,30 @@ final class PokemonDataStore {
         }
     }
 
+    /// Ensures roster data is usable for a generation without blocking on full species downloads.
     func ensureGameData(for gameGeneration: PokemonGeneration) async {
-        guard (try? repository.needsGameSync(for: gameGeneration)) == true else { return }
-        guard !syncState.isSyncing else { return }
-        await syncGameData(for: gameGeneration, replacingState: false)
+        if (try? repository.hasPlayableData(for: gameGeneration)) == true {
+            return
+        }
+
+        if (try? repository.rebuildGameDataLocally(for: gameGeneration)) == true {
+            refreshCacheStats()
+            if case .idle = syncState {
+                syncState = .ready(source: .api)
+            }
+            return
+        }
+
+        guard (try? repository.needsRosterSync(for: gameGeneration)) == true else {
+            return
+        }
+
+        enqueueSync(for: gameGeneration)
+        startSyncWorkerIfNeeded()
+    }
+
+    func ensureSpeciesDetails(for speciesID: Int) async throws -> PokemonSpecies {
+        try await repository.ensureSpeciesDetails(speciesID: speciesID)
     }
 
     func species(in gameGeneration: PokemonGeneration) throws -> [PokemonSpecies] {
@@ -86,8 +116,9 @@ final class PokemonDataStore {
     }
 
     func clearCacheAndResync() async {
-        backgroundSyncTask?.cancel()
-        backgroundSyncTask = nil
+        syncWorkerTask?.cancel()
+        syncWorkerTask = nil
+        pendingSyncGenerations.removeAll()
 
         do {
             try repository.clearCache()
@@ -99,26 +130,108 @@ final class PokemonDataStore {
             return
         }
 
-        await syncGameData(for: .gen1, replacingState: true)
-        startBackgroundFullSyncIfNeeded()
+        enqueueSync(for: .gen1)
+        startSyncWorkerIfNeeded()
     }
 
     func refreshCacheStats() {
         cacheStats = try? repository.cacheStats()
     }
 
-    private func startBackgroundFullSyncIfNeeded() {
-        guard backgroundSyncTask == nil else { return }
-        guard (try? repository.needsAnySync()) == true else { return }
+    private func enqueueSync(for gameGeneration: PokemonGeneration) {
+        guard (try? repository.needsRosterSync(for: gameGeneration)) == true
+            || (try? repository.hasPlayableData(for: gameGeneration)) == false else {
+            return
+        }
 
-        backgroundSyncTask = Task {
-            await syncAllMissingData()
-            backgroundSyncTask = nil
+        guard !pendingSyncGenerations.contains(gameGeneration) else { return }
+        pendingSyncGenerations.append(gameGeneration)
+    }
+
+    private func startSyncWorkerIfNeeded() {
+        guard syncWorkerTask == nil else { return }
+        guard !pendingSyncGenerations.isEmpty else { return }
+
+        syncWorkerTask = Task { [weak self] in
+            guard let self else { return }
+
+            while !Task.isCancelled {
+                let nextGeneration = await MainActor.run { () -> PokemonGeneration? in
+                    guard !self.pendingSyncGenerations.isEmpty else { return nil }
+                    return self.pendingSyncGenerations.removeFirst()
+                }
+
+                guard let nextGeneration else { break }
+
+                await self.syncRoster(for: nextGeneration, replacingState: false)
+            }
+
+            await MainActor.run {
+                self.syncWorkerTask = nil
+                if !self.pendingSyncGenerations.isEmpty {
+                    self.startSyncWorkerIfNeeded()
+                }
+            }
+        }
+    }
+
+    private func syncRoster(for gameGeneration: PokemonGeneration, replacingState: Bool) async {
+        if (try? repository.rebuildGameDataLocally(for: gameGeneration)) == true,
+           (try? repository.hasPlayableData(for: gameGeneration)) == true,
+           (try? repository.needsRosterSync(for: gameGeneration)) == false {
+            refreshCacheStats()
+            if case .idle = syncState {
+                syncState = .ready(source: .api)
+            }
+            return
+        }
+
+        guard !syncState.isSyncing else {
+            enqueueSync(for: gameGeneration)
+            return
+        }
+
+        syncState = .syncing(generation: gameGeneration.rawValue, completed: 0, total: 1)
+
+        do {
+            let result = try await repository.syncRoster(for: gameGeneration)
+
+            syncState = .ready(source: .api)
+            refreshCacheStats()
+
+            if result.speciesCount == 0 {
+                syncState = .failed("No species returned for \(gameGeneration.displayName).")
+            }
+        } catch {
+            if replacingState || (try? repository.speciesCount()) == 0 {
+                _ = try? repository.loadSeedFallbackIfNeeded()
+                if (try? repository.speciesCount()) ?? 0 > 0 {
+                    syncState = .ready(source: .seedFallback)
+                    refreshCacheStats()
+                    startSyncWorkerIfNeeded()
+                    return
+                }
+            }
+            syncState = .failed(error.localizedDescription)
+            refreshCacheStats()
         }
     }
 
     private func syncGameData(for gameGeneration: PokemonGeneration, replacingState: Bool) async {
-        guard !syncState.isSyncing else { return }
+        if (try? repository.rebuildGameDataLocally(for: gameGeneration)) == true,
+           (try? repository.hasPlayableData(for: gameGeneration)) == true,
+           (try? repository.needsFullNetworkSync(for: gameGeneration)) == false {
+            refreshCacheStats()
+            if case .idle = syncState {
+                syncState = .ready(source: .api)
+            }
+            return
+        }
+
+        guard !syncState.isSyncing else {
+            enqueueSync(for: gameGeneration)
+            return
+        }
 
         syncState = .syncing(generation: gameGeneration.rawValue, completed: 0, total: 0)
 
@@ -138,8 +251,6 @@ final class PokemonDataStore {
 
             if result.speciesCount == 0 {
                 syncState = .failed("No species returned for \(gameGeneration.displayName).")
-            } else {
-                startBackgroundFullSyncIfNeeded()
             }
         } catch {
             if replacingState || (try? repository.speciesCount()) == 0 {
@@ -147,7 +258,7 @@ final class PokemonDataStore {
                 if (try? repository.speciesCount()) ?? 0 > 0 {
                     syncState = .ready(source: .seedFallback)
                     refreshCacheStats()
-                    startBackgroundFullSyncIfNeeded()
+                    startSyncWorkerIfNeeded()
                     return
                 }
             }
