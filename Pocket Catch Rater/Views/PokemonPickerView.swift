@@ -69,6 +69,9 @@ struct PokemonPickerView: View {
             .task(id: taskID) {
                 await loadSpecies()
             }
+            .onChange(of: dataStore.syncState) { _, _ in
+                reloadSpeciesFromCache()
+            }
         }
     }
 
@@ -77,10 +80,22 @@ struct PokemonPickerView: View {
     }
 
     private func loadSpecies() async {
+        reloadSpeciesFromCache()
+
+        if !species.isEmpty {
+            await dataStore.ensureGameData(for: gameGeneration)
+            reloadSpeciesFromCache()
+            return
+        }
+
         isLoading = true
         await dataStore.ensureGameData(for: gameGeneration)
-        species = (try? dataStore.search(name: searchText, in: gameGeneration)) ?? []
+        reloadSpeciesFromCache()
         isLoading = false
+    }
+
+    private func reloadSpeciesFromCache() {
+        species = (try? dataStore.search(name: searchText, in: gameGeneration)) ?? []
     }
 }
 

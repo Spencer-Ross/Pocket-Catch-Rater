@@ -76,6 +76,38 @@ final class PokemonSyncTests: XCTestCase {
         XCTAssertEqual(try database.availabilityCount(for: 2), 2)
         XCTAssertEqual(try database.availabilityCount(for: 9), 1)
     }
+
+    func testRebuildGameDataLocallyUsesCachedSourcesWithoutAPI() async throws {
+        let database = try PokemonDatabase(inMemory: true)
+        let mock = MockPokemonAPIClient()
+        mock.resultsByGeneration = [
+            1: [SpeciesDTO(id: 1, name: "Bulbasaur", generation: 1, baseHP: 45, catchRate: 45)],
+            2: [SpeciesDTO(id: 152, name: "Chikorita", generation: 2, baseHP: 45, catchRate: 45)],
+        ]
+
+        let repository = PokemonRepository(database: database, apiClient: mock)
+        _ = try await repository.syncAllMissingData()
+        mock.fetchGenerationCallCount = [:]
+
+        XCTAssertTrue(try repository.rebuildGameDataLocally(for: .gen2))
+        XCTAssertEqual(try repository.speciesCount(inGameGeneration: 2), 2)
+        XCTAssertEqual(mock.fetchGenerationCallCount[1], nil)
+        XCTAssertEqual(mock.fetchGenerationCallCount[2], nil)
+    }
+
+    func testHasPlayableDataReflectsAvailabilityTable() async throws {
+        let database = try PokemonDatabase(inMemory: true)
+        let mock = MockPokemonAPIClient()
+        mock.resultsByGeneration = [
+            1: [SpeciesDTO(id: 1, name: "Bulbasaur", generation: 1, baseHP: 45, catchRate: 45)],
+        ]
+
+        let repository = PokemonRepository(database: database, apiClient: mock)
+        XCTAssertFalse(try repository.hasPlayableData(for: .gen1))
+
+        _ = try await repository.syncGameData(for: .gen1)
+        XCTAssertTrue(try repository.hasPlayableData(for: .gen1))
+    }
 }
 
 private final class ProgressCollector: @unchecked Sendable {

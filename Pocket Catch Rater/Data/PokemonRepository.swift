@@ -60,6 +60,36 @@ nonisolated final class PokemonRepository {
         try database.metadataValue(for: Self.syncMetadataKey(for: gameGeneration)) == nil
     }
 
+    func hasPlayableData(for gameGeneration: PokemonGeneration) throws -> Bool {
+        try database.availabilityCount(for: gameGeneration.rawValue) > 0
+    }
+
+    func hasCachedSources(for gameGeneration: PokemonGeneration) throws -> Bool {
+        try gameGeneration.syncSources.allSatisfy {
+            try database.metadataValue(for: $0.metadataKey) != nil
+        }
+    }
+
+    /// Rebuilds generation availability from locally cached API sources without network I/O.
+    @discardableResult
+    func rebuildGameDataLocally(for gameGeneration: PokemonGeneration) throws -> Bool {
+        guard try hasCachedSources(for: gameGeneration) else { return false }
+
+        try database.rebuildAvailability(for: gameGeneration.rawValue)
+
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        try database.setMetadata(key: Self.syncMetadataKey(for: gameGeneration), value: timestamp)
+        try database.setMetadata(key: "data_source", value: "api")
+        try database.setMetadata(key: "total_species_count", value: String(try database.speciesCount()))
+        return true
+    }
+
+    func needsNetworkSync(for gameGeneration: PokemonGeneration) throws -> Bool {
+        try gameGeneration.syncSources.contains {
+            try database.metadataValue(for: $0.metadataKey) == nil
+        }
+    }
+
     func needsAnySync() throws -> Bool {
         try PokemonGeneration.allSyncSources.contains {
             try database.metadataValue(for: $0.metadataKey) == nil

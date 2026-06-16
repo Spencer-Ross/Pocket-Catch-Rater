@@ -3,22 +3,28 @@ import SwiftUI
 struct CatchCalculatorView: View {
     @Bindable var dataStore: PokemonDataStore
 
-    @AppStorage("selectedGeneration") private var selectedGenerationRaw = PokemonGeneration.gen1.rawValue
+    @AppStorage("selectedCatchRuleSet") private var selectedRuleSetRaw = CatchRuleSet.gen1.rawValue
+    @AppStorage("selectedGeneration") private var legacyGenerationRaw = 0
 
     @State private var inputs = CatchInputs()
+    @State private var showRuleSetPicker = false
     @State private var showPokemonPicker = false
     @State private var showBallPicker = false
     @State private var showBallConditions = false
     @State private var showSettings = false
     @State private var catchResult: CatchResult?
 
-    private var selectedGeneration: PokemonGeneration {
-        get { PokemonGeneration(rawValue: selectedGenerationRaw) ?? .gen1 }
-        nonmutating set { selectedGenerationRaw = newValue.rawValue }
+    private var selectedRuleSet: CatchRuleSet {
+        get { CatchRuleSet.resolved(storedRaw: selectedRuleSetRaw) }
+        nonmutating set { selectedRuleSetRaw = newValue.rawValue }
+    }
+
+    private var dataGeneration: PokemonGeneration {
+        selectedRuleSet.representativeGeneration
     }
 
     private var availableBalls: [CatchBall] {
-        CatchBall.balls(for: selectedGeneration).filter { $0 != .safari }
+        CatchBall.balls(for: dataGeneration).filter { $0 != .safari }
     }
 
     var body: some View {
@@ -26,18 +32,40 @@ struct CatchCalculatorView: View {
             CompactResultsHeader(
                 result: catchResult,
                 species: inputs.species,
-                generation: selectedGeneration
+                ruleSet: selectedRuleSet
             )
 
             Divider()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    inputSection(title: "Generation") {
-                        GenerationChipRow(selection: Binding(
-                            get: { selectedGeneration },
-                            set: { selectedGeneration = $0 }
-                        )) { selectGeneration($0) }
+                    inputSection(title: "Catch Rules") {
+                        Button {
+                            showRuleSetPicker = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Formula")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(selectedRuleSet.displayName)
+                                        .font(.body.weight(.medium))
+                                    Text(selectedRuleSet.gamesLabel)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(12)
+                            .background(Color(.secondarySystemGroupedBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     inputSection(title: "Pokémon") {
@@ -75,7 +103,7 @@ struct CatchCalculatorView: View {
                             recalculate()
                         }
 
-                        if inputs.battleMode != .safari || selectedGeneration != .gen1 {
+                        if inputs.battleMode != .safari || selectedRuleSet.isGen1 {
                             HPBarSlider(hpPercent: Binding(
                                 get: { inputs.hpPercent },
                                 set: { inputs.hpPercent = $0; recalculate() }
@@ -85,7 +113,7 @@ struct CatchCalculatorView: View {
                         }
                     }
 
-                    if selectedGeneration == .gen1 {
+                    if selectedRuleSet.isGen1 {
                         Toggle("Safari Zone", isOn: Binding(
                             get: { inputs.battleMode == .safari },
                             set: { inputs.battleMode = $0 ? .safari : .wild; recalculate() }
@@ -95,7 +123,7 @@ struct CatchCalculatorView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
 
-                    if inputs.battleMode == .safari && selectedGeneration == .gen1 {
+                    if inputs.battleMode == .safari && selectedRuleSet.isGen1 {
                         inputSection(title: "Safari Modifiers") {
                             Stepper("Rocks thrown: \(inputs.rocksThrown)", value: Binding(
                                 get: { inputs.rocksThrown },
@@ -188,10 +216,19 @@ struct CatchCalculatorView: View {
                 }
             }
         }
+        .sheet(isPresented: $showRuleSetPicker) {
+            GenerationPickerSheet(
+                selection: Binding(
+                    get: { selectedRuleSet },
+                    set: { selectedRuleSet = $0 }
+                ),
+                onChange: selectRuleSet
+            )
+        }
         .sheet(isPresented: $showPokemonPicker) {
             PokemonPickerView(
                 dataStore: dataStore,
-                gameGeneration: selectedGeneration,
+                gameGeneration: dataGeneration,
                 selectedSpecies: Binding(
                     get: { inputs.species },
                     set: {
@@ -211,12 +248,12 @@ struct CatchCalculatorView: View {
                 ),
                 onChange: recalculate
             )
-            .id(selectedGeneration.rawValue)
+            .id(selectedRuleSetRaw)
         }
         .sheet(isPresented: $showBallConditions) {
             BallConditionsSheet(
                 inputs: $inputs,
-                generation: selectedGeneration,
+                ruleSet: selectedRuleSet,
                 onChange: recalculate
             )
         }
@@ -231,13 +268,15 @@ struct CatchCalculatorView: View {
             }
         }
         .onAppear {
-            inputs.generation = selectedGeneration
+            migrateLegacyGenerationSelectionIfNeeded()
+            inputs.generation = dataGeneration
             ensureValidBallSelection()
             recalculate()
-            Task { await dataStore.ensureGameData(for: selectedGeneration) }
+            Task { await dataStore.ensureGameData(for: dataGeneration) }
         }
-        .onChange(of: selectedGenerationRaw) { _, _ in
-            Task { await dataStore.ensureGameData(for: selectedGeneration) }
+        .onChange(of: selectedRuleSetRaw) { _, _ in
+            applyRuleSetChange()
+            Task { await dataStore.ensureGameData(for: dataGeneration) }
         }
         .onChange(of: dataStore.syncState) { _, _ in
             recalculate()
@@ -245,7 +284,7 @@ struct CatchCalculatorView: View {
     }
 
     private var showsBallConditions: Bool {
-        selectedGeneration.rawValue >= 2
+        !selectedRuleSet.isGen1
             && inputs.battleMode != .safari
             && inputs.catchBall != .master
     }
@@ -273,14 +312,23 @@ struct CatchCalculatorView: View {
         }
     }
 
-    private func applyGenerationChange() {
-        inputs.generation = selectedGeneration
+    private func migrateLegacyGenerationSelectionIfNeeded() {
+        if selectedRuleSetRaw == "gen6to7" {
+            selectedRuleSetRaw = CatchRuleSet.gen7.rawValue
+        }
+        guard legacyGenerationRaw >= 1, legacyGenerationRaw <= 9 else { return }
+        selectedRuleSetRaw = CatchRuleSet.migrated(fromLegacyGenerationRaw: legacyGenerationRaw).rawValue
+        legacyGenerationRaw = 0
+    }
+
+    private func applyRuleSetChange() {
+        inputs.generation = dataGeneration
         inputs.battleMode = .wild
         inputs.rocksThrown = 0
         inputs.baitUsed = 0
 
         if let species = inputs.species,
-           (try? dataStore.isSpeciesAvailable(species, in: selectedGeneration)) == false {
+           (try? dataStore.isSpeciesAvailable(species, in: dataGeneration)) == false {
             inputs.species = nil
         }
 
@@ -288,10 +336,10 @@ struct CatchCalculatorView: View {
         recalculate()
     }
 
-    private func selectGeneration(_ generation: PokemonGeneration) {
-        selectedGeneration = generation
-        applyGenerationChange()
-        Task { await dataStore.ensureGameData(for: generation) }
+    private func selectRuleSet(_ ruleSet: CatchRuleSet) {
+        selectedRuleSet = ruleSet
+        applyRuleSetChange()
+        Task { await dataStore.ensureGameData(for: ruleSet.representativeGeneration) }
     }
 
     private func ensureValidBallSelection() {
@@ -311,7 +359,7 @@ struct CatchCalculatorView: View {
     }
 
     private func recalculate() {
-        inputs.generation = selectedGeneration
+        inputs.generation = dataGeneration
         ensureValidBallSelection()
 
         guard let species = inputs.species else {
@@ -319,7 +367,7 @@ struct CatchCalculatorView: View {
             return
         }
 
-        let calculator = CatchCalculatorEngine.calculator(for: selectedGeneration)
+        let calculator = CatchCalculatorEngine.calculator(for: selectedRuleSet)
         catchResult = calculator.calculateWithEstimatedHP(
             inputs: inputs,
             catchRate: species.catchRate,
