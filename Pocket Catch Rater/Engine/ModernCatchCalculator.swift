@@ -7,6 +7,7 @@ struct ModernCatchCalculator: CatchCalculator {
         let ball = inputs.effectiveBall
         let status = inputs.effectiveStatus
         let context = inputs.ballContext
+        let weightKg = inputs.species?.weightKg
 
         if ball == .master {
             return CatchResult(
@@ -32,8 +33,18 @@ struct ModernCatchCalculator: CatchCalculator {
             )
 
         case .gen2:
-            let multiplier = ball.gen2CatchRateMultiplier(context: context)
-            let modifiedCatchRate = min(255, Int(floor(Double(catchRate) * multiplier)))
+            let modifiedCatchRate: Int
+            if ball == .heavy {
+                modifiedCatchRate = HeavyBallMath.adjustedSpeciesCatchRate(
+                    base: catchRate,
+                    ball: ball,
+                    weightKg: weightKg,
+                    formulaFamily: formulaFamily
+                )
+            } else {
+                let multiplier = ball.gen2CatchRateMultiplier(context: context)
+                modifiedCatchRate = min(255, Int(floor(Double(catchRate) * multiplier)))
+            }
             let x = CaptureMath.gen2ModifiedRate(
                 maxHP: maxHP,
                 currentHP: currentHP,
@@ -53,11 +64,17 @@ struct ModernCatchCalculator: CatchCalculator {
             )
 
         case .gen3to4:
+            let effectiveCatchRate = HeavyBallMath.adjustedSpeciesCatchRate(
+                base: catchRate,
+                ball: ball,
+                weightKg: weightKg,
+                formulaFamily: formulaFamily
+            )
             let ballBonus = ball.modernBallBonus(generation: inputs.generation, context: context)
             let x = CaptureMath.gen3ModifiedRate(
                 maxHP: maxHP,
                 currentHP: currentHP,
-                catchRate: catchRate,
+                catchRate: effectiveCatchRate,
                 ballBonus: ballBonus,
                 status: status
             )
@@ -74,6 +91,12 @@ struct ModernCatchCalculator: CatchCalculator {
             )
 
         case .gen5:
+            let effectiveCatchRate = HeavyBallMath.adjustedSpeciesCatchRate(
+                base: catchRate,
+                ball: ball,
+                weightKg: weightKg,
+                formulaFamily: formulaFamily
+            )
             let ballBonus = ball.modernBallBonus(generation: inputs.generation, context: context)
             let grass = CaptureMath.grassModifier(
                 isThickGrass: inputs.isThickGrass,
@@ -82,7 +105,7 @@ struct ModernCatchCalculator: CatchCalculator {
             let x = CaptureMath.gen5ModifiedRate(
                 maxHP: maxHP,
                 currentHP: currentHP,
-                catchRate: catchRate,
+                catchRate: effectiveCatchRate,
                 ballBonus: ballBonus,
                 status: status,
                 grassModifier: grass
@@ -100,6 +123,12 @@ struct ModernCatchCalculator: CatchCalculator {
             )
 
         case .gen6to7, .gen8to9:
+            let effectiveCatchRate = HeavyBallMath.adjustedSpeciesCatchRate(
+                base: catchRate,
+                ball: ball,
+                weightKg: weightKg,
+                formulaFamily: formulaFamily
+            )
             let ballBonus = ball.modernBallBonus(generation: inputs.generation, context: context)
             let grass = CaptureMath.grassModifier(
                 isThickGrass: inputs.isThickGrass,
@@ -111,7 +140,7 @@ struct ModernCatchCalculator: CatchCalculator {
             let x = CaptureMath.gen6ModifiedRate(
                 maxHP: maxHP,
                 currentHP: currentHP,
-                catchRate: catchRate,
+                catchRate: effectiveCatchRate,
                 ballBonus: ballBonus,
                 status: status,
                 grassModifier: grass,

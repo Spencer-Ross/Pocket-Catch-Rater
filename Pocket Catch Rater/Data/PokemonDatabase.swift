@@ -109,6 +109,12 @@ nonisolated struct PokemonDatabase {
             }
         }
 
+        migrator.registerMigration("v5_species_weight") { db in
+            try db.alter(table: "species") { t in
+                t.add(column: "weight_kg", .double)
+            }
+        }
+
         return migrator
     }
 
@@ -119,8 +125,8 @@ nonisolated struct PokemonDatabase {
             for entry in species {
                 try db.execute(
                     sql: """
-                    INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, updated_at, has_details)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                    INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, weight_kg, updated_at, has_details)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                     ON CONFLICT(id) DO UPDATE SET
                         name = excluded.name,
                         generation = excluded.generation,
@@ -128,6 +134,7 @@ nonisolated struct PokemonDatabase {
                         catch_rate = excluded.catch_rate,
                         type1 = COALESCE(excluded.type1, species.type1),
                         type2 = COALESCE(excluded.type2, species.type2),
+                        weight_kg = COALESCE(excluded.weight_kg, species.weight_kg),
                         updated_at = excluded.updated_at,
                         has_details = 1
                     """,
@@ -139,6 +146,7 @@ nonisolated struct PokemonDatabase {
                         entry.catchRate,
                         entry.type1,
                         entry.type2,
+                        entry.weightKg,
                         timestamp,
                     ]
                 )
@@ -151,8 +159,8 @@ nonisolated struct PokemonDatabase {
             for entry in entries {
                 try db.execute(
                     sql: """
-                    INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, updated_at, has_details)
-                    VALUES (?, ?, ?, 0, 0, NULL, NULL, ?, 0)
+                    INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, weight_kg, updated_at, has_details)
+                    VALUES (?, ?, ?, 0, 0, NULL, NULL, NULL, ?, 0)
                     ON CONFLICT(id) DO UPDATE SET
                         name = excluded.name,
                         generation = CASE WHEN species.has_details = 1 THEN species.generation ELSE excluded.generation END,
@@ -168,8 +176,8 @@ nonisolated struct PokemonDatabase {
         try dbQueue.write { db in
             try db.execute(
                 sql: """
-                INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, updated_at, has_details)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                INSERT INTO species (id, name, generation, base_hp, catch_rate, type1, type2, weight_kg, updated_at, has_details)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
                     generation = excluded.generation,
@@ -177,6 +185,7 @@ nonisolated struct PokemonDatabase {
                     catch_rate = excluded.catch_rate,
                     type1 = excluded.type1,
                     type2 = excluded.type2,
+                    weight_kg = excluded.weight_kg,
                     updated_at = excluded.updated_at,
                     has_details = 1
                 """,
@@ -188,6 +197,7 @@ nonisolated struct PokemonDatabase {
                     entry.catchRate,
                     entry.type1,
                     entry.type2,
+                    entry.weightKg,
                     timestamp,
                 ]
             )
@@ -317,7 +327,7 @@ nonisolated struct PokemonDatabase {
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                SELECT id, name, generation, base_hp, catch_rate, type1, type2, has_details
+                SELECT id, name, generation, base_hp, catch_rate, type1, type2, weight_kg, has_details
                 FROM species
                 WHERE generation <= ?
                 ORDER BY id
@@ -344,7 +354,7 @@ nonisolated struct PokemonDatabase {
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                SELECT id, name, generation, base_hp, catch_rate, type1, type2, has_details
+                SELECT id, name, generation, base_hp, catch_rate, type1, type2, weight_kg, has_details
                 FROM species
                 WHERE generation <= ? AND name LIKE ? || '%'
                 ORDER BY id
@@ -397,7 +407,7 @@ nonisolated struct PokemonDatabase {
                 rows = try Row.fetchAll(
                     db,
                     sql: """
-                    SELECT s.id, s.name, s.generation, s.base_hp, s.catch_rate, s.type1, s.type2, s.has_details
+                    SELECT s.id, s.name, s.generation, s.base_hp, s.catch_rate, s.type1, s.type2, s.weight_kg, s.has_details
                     FROM species s
                     INNER JOIN species_game_availability a ON a.species_id = s.id
                     WHERE a.game_generation = ? AND s.name LIKE ? || '%'
@@ -409,7 +419,7 @@ nonisolated struct PokemonDatabase {
                 rows = try Row.fetchAll(
                     db,
                     sql: """
-                    SELECT s.id, s.name, s.generation, s.base_hp, s.catch_rate, s.type1, s.type2, s.has_details
+                    SELECT s.id, s.name, s.generation, s.base_hp, s.catch_rate, s.type1, s.type2, s.weight_kg, s.has_details
                     FROM species s
                     INNER JOIN species_game_availability a ON a.species_id = s.id
                     WHERE a.game_generation = ?
@@ -435,7 +445,7 @@ nonisolated struct PokemonDatabase {
             guard let row = try Row.fetchOne(
                 db,
                 sql: """
-                SELECT id, name, generation, base_hp, catch_rate, type1, type2, has_details
+                SELECT id, name, generation, base_hp, catch_rate, type1, type2, weight_kg, has_details
                 FROM species WHERE id = ?
                 """,
                 arguments: [id]
@@ -469,6 +479,7 @@ nonisolated struct PokemonDatabase {
             catchRate: row["catch_rate"],
             type1: row["type1"],
             type2: row["type2"],
+            weightKg: row["weight_kg"],
             hasDetails: (row["has_details"] as Int?) == 1
         )
     }

@@ -119,7 +119,7 @@ nonisolated final class PokemonRepository {
     }
 
     func ensureSpeciesDetails(speciesID: Int) async throws -> PokemonSpecies {
-        if let cached = try database.species(id: speciesID), cached.hasDetails {
+        if let cached = try database.species(id: speciesID), cached.hasCompleteDetails {
             return cached
         }
 
@@ -265,7 +265,8 @@ nonisolated final class PokemonRepository {
                 baseHP: $0.baseHP,
                 catchRate: $0.catchRate,
                 type1: $0.type1,
-                type2: $0.type2
+                type2: $0.type2,
+                weightKg: $0.weightKg
             )
         }
 

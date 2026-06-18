@@ -6,6 +6,21 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8530416E2FD7440000F5B12F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8530416C2FD7440000F5B12F /* GRDB */; };
+		8530416F2FD7440000F5B12F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8530416D2FD7440000F5B12F /* GRDB */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		853041622FD7440000F5B12F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8530413A2FD7438E00F5B12F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 853041412FD7438E00F5B12F;
+			remoteInfo = "Pocket Catch Rater";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		853041422FD7438E00F5B12F /* Pocket Catch Rater.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pocket Catch Rater.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		853041602FD7440000F5B12F /* Pocket Catch RaterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Pocket Catch RaterTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -23,16 +38,6 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
-
-/* Begin PBXContainerItemProxy section */
-		853041622FD7440000F5B12F /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 8530413A2FD7438E00F5B12F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 853041412FD7438E00F5B12F;
-			remoteInfo = "Pocket Catch Rater";
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		8530413F2FD7438E00F5B12F /* Frameworks */ = {
@@ -151,7 +156,7 @@
 			mainGroup = 853041392FD7438E00F5B12F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				8530416B2FD7440000F5B12F /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "SourcePackages/checkouts/GRDB.swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 853041432FD7438E00F5B12F /* Products */;
@@ -205,31 +210,6 @@
 			targetProxy = 853041622FD7440000F5B12F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
-
-/* Begin PBXBuildFile section */
-		8530416E2FD7440000F5B12F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8530416C2FD7440000F5B12F /* GRDB */; };
-		8530416F2FD7440000F5B12F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8530416D2FD7440000F5B12F /* GRDB */; };
-/* End PBXBuildFile section */
-
-/* Begin XCLocalSwiftPackageReference section */
-		8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "GRDB.swift" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = SourcePackages/checkouts/GRDB.swift;
-		};
-/* End XCLocalSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		8530416C2FD7440000F5B12F /* GRDB */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "GRDB.swift" */;
-			productName = GRDB;
-		};
-		8530416D2FD7440000F5B12F /* GRDB */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "GRDB.swift" */;
-			productName = GRDB;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		8530414D2FD7439000F5B12F /* Debug */ = {
@@ -484,6 +464,26 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "SourcePackages/checkouts/GRDB.swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = SourcePackages/checkouts/GRDB.swift;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8530416C2FD7440000F5B12F /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "SourcePackages/checkouts/GRDB.swift" */;
+			productName = GRDB;
+		};
+		8530416D2FD7440000F5B12F /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8530416B2FD7440000F5B12F /* XCLocalSwiftPackageReference "SourcePackages/checkouts/GRDB.swift" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8530413A2FD7438E00F5B12F /* Project object */;
 }

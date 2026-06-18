@@ -11,6 +11,7 @@ struct PokemonPickerView: View {
     @State private var species: [PokemonSpecies] = []
     @State private var isLoading = false
     @State private var loadingSpeciesID: Int?
+    @State private var isScrolling = false
 
     var body: some View {
         NavigationStack {
@@ -38,7 +39,8 @@ struct PokemonPickerView: View {
                                 PokemonGridCell(
                                     species: entry,
                                     isSelected: selectedSpecies?.id == entry.id,
-                                    isLoadingDetails: loadingSpeciesID == entry.id
+                                    isLoadingDetails: loadingSpeciesID == entry.id,
+                                    isScrolling: isScrolling
                                 ) {
                                     Task { await selectSpecies(entry) }
                                 }
@@ -46,6 +48,9 @@ struct PokemonPickerView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
+                    }
+                    .onScrollPhaseChange { _, phase in
+                        isScrolling = phase != .idle
                     }
                 }
             }
@@ -67,17 +72,16 @@ struct PokemonPickerView: View {
                         .background(.bar)
                 }
             }
-            .task(id: taskID) {
+            .task(id: gameGeneration.rawValue) {
                 await loadSpecies()
+            }
+            .onChange(of: searchText) { _, _ in
+                reloadSpeciesFromCache()
             }
             .onChange(of: dataStore.syncState) { _, _ in
                 reloadSpeciesFromCache()
             }
         }
-    }
-
-    private var taskID: String {
-        "\(gameGeneration.rawValue)-\(searchText)"
     }
 
     private func loadSpecies() async {
@@ -102,7 +106,7 @@ struct PokemonPickerView: View {
     private func selectSpecies(_ entry: PokemonSpecies) async {
         guard loadingSpeciesID == nil else { return }
 
-        if entry.hasDetails {
+        if entry.hasCompleteDetails {
             selectedSpecies = entry
             dismiss()
             return
@@ -125,21 +129,19 @@ private struct PokemonGridCell: View {
     let species: PokemonSpecies
     let isSelected: Bool
     var isLoadingDetails = false
+    var isScrolling = false
     let action: () -> Void
 
-    private let tapThreshold: CGFloat = 12
+    /// Finger movement above this cancels the tap so scrolling can take over.
+    private let scrollTapThreshold: CGFloat = 20
 
     var body: some View {
         cellContent
             .contentShape(RoundedRectangle(cornerRadius: 10))
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onEnded { value in
-                        let distance = hypot(value.translation.width, value.translation.height)
-                        guard distance < tapThreshold else { return }
-                        action()
-                    }
-            )
+            .onLongPressGesture(minimumDuration: 0, maximumDistance: scrollTapThreshold) {
+                guard !isLoadingDetails, !isScrolling else { return }
+                action()
+            }
     }
 
     private var cellContent: some View {
