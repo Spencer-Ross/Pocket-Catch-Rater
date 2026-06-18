@@ -59,6 +59,87 @@ struct CompactStatusGrid: View {
     }
 }
 
+struct SelectedCatchBallHeader: View {
+    let name: String
+    let spriteURL: URL?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RemoteSpriteImage(url: spriteURL, size: 40)
+
+            Text(name)
+                .font(.body.weight(.semibold))
+
+            Spacer()
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+struct StandardBallSkinSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let generation: PokemonGeneration
+    @Binding var selection: StandardBall
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(StandardBall.available(for: generation)) { ball in
+                        Button {
+                            selection = ball
+                            dismiss()
+                        } label: {
+                            VStack(spacing: 6) {
+                                RemoteSpriteImage(url: ball.spriteURL, size: 40)
+                                    .frame(maxWidth: .infinity)
+
+                                Text(ball.displayName)
+                                    .font(.caption.weight(.medium))
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.8)
+                                    .multilineTextAlignment(.center)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity, minHeight: 84, alignment: .top)
+                            .background(
+                                selection == ball
+                                    ? Color.accentColor.opacity(0.18)
+                                    : Color(.secondarySystemGroupedBackground)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(selection == ball ? Color.accentColor : Color.clear, lineWidth: 2)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Poké Ball Style")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
 struct GenerationPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -101,51 +182,6 @@ struct GenerationPickerSheet: View {
                     Button("Cancel") { dismiss() }
                 }
             }
-        }
-    }
-}
-
-struct BallPickerSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let balls: [CatchBall]
-    @Binding var selection: CatchBall
-    var onChange: () -> Void = {}
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                BallSelectionGrid(
-                    balls: balls,
-                    selection: $selection,
-                    onChange: {
-                        onChange()
-                        dismiss()
-                    }
-                )
-                .padding()
-            }
-            .navigationTitle("Choose Ball")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .onAppear {
-                clampSelectionToAvailableBalls()
-            }
-            .onChange(of: balls.map(\.id)) { _, _ in
-                clampSelectionToAvailableBalls()
-            }
-        }
-    }
-
-    private func clampSelectionToAvailableBalls() {
-        guard !balls.isEmpty else { return }
-        if !balls.contains(selection) {
-            selection = balls[0]
-            onChange()
         }
     }
 }

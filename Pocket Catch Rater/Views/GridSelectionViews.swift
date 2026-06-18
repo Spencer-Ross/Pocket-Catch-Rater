@@ -1,83 +1,5 @@
 import SwiftUI
 
-struct PaginatedSelectionGrid<Item: Identifiable & Hashable>: View {
-    let items: [Item]
-    @Binding var selection: Item
-    var rowsPerPage: Int = 4
-    let title: (Item) -> String
-    var subtitle: ((Item) -> String)? = nil
-    var imageURL: ((Item) -> URL?)? = nil
-    var systemImage: ((Item) -> (name: String, color: Color)?)? = nil
-    var onChange: () -> Void = {}
-
-    @State private var currentPage = 0
-
-    private var gridHeight: CGFloat {
-        let rowHeight: CGFloat = imageURL != nil || systemImage != nil ? 92 : 62
-        return CGFloat(rowsPerPage) * rowHeight + CGFloat(max(rowsPerPage - 1, 0)) * 10 + 8
-    }
-
-    var body: some View {
-        GeometryReader { geometry in
-            let columnCount = resolvedColumnCount(for: geometry.size.width)
-            let itemsPerPage = columnCount * rowsPerPage
-            let pages = items.chunked(into: itemsPerPage)
-            let gridColumns = Array(repeating: GridItem(.flexible(), spacing: 10), count: columnCount)
-
-            VStack(spacing: 8) {
-                if pages.isEmpty {
-                    EmptyView()
-                } else if pages.count == 1 {
-                    gridPage(pages[0], columns: gridColumns)
-                } else {
-                    TabView(selection: $currentPage) {
-                        ForEach(Array(pages.enumerated()), id: \.offset) { pageIndex, pageItems in
-                            gridPage(pageItems, columns: gridColumns)
-                                .tag(pageIndex)
-                        }
-                    }
-                    .tabViewStyle(.page(indexDisplayMode: .automatic))
-                    .frame(height: gridHeight)
-
-                    Text("Page \(currentPage + 1) of \(pages.count)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        }
-        .frame(height: gridHeight + (items.count > rowsPerPage * 3 ? 24 : 0))
-        .onChange(of: items.count) { _, _ in
-            currentPage = 0
-        }
-    }
-
-    private func resolvedColumnCount(for width: CGFloat) -> Int {
-        if width >= 390 { return 4 }
-        if width >= 320 { return 3 }
-        return 2
-    }
-
-    @ViewBuilder
-    private func gridPage(_ pageItems: [Item], columns: [GridItem]) -> some View {
-        LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(pageItems) { item in
-                SelectionGridCell(
-                    title: title(item),
-                    subtitle: subtitle?(item),
-                    imageURL: imageURL?(item),
-                    systemImage: systemImage?(item),
-                    isSelected: selection.id == item.id
-                ) {
-                    selection = item
-                    onChange()
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
 struct SelectionGridCell: View {
     let title: String
     let subtitle: String?
@@ -129,36 +51,106 @@ struct SelectionGridCell: View {
     }
 }
 
-extension Array {
-    func chunked(into size: Int) -> [[Element]] {
-        guard size > 0, !isEmpty else { return isEmpty ? [] : [self] }
-        var result: [[Element]] = []
-        result.reserveCapacity((count + size - 1) / size)
-
-        var index = startIndex
-        while index < endIndex {
-            let end = self.index(index, offsetBy: size, limitedBy: endIndex) ?? endIndex
-            result.append(Array(self[index..<end]))
-            index = end
-        }
-        return result
-    }
-}
-
 struct BallSelectionGrid: View {
     let balls: [CatchBall]
     @Binding var selection: CatchBall
+    @Binding var standardBallAppearance: StandardBall
+    var onCustomizeStandardBall: () -> Void = {}
     var onChange: () -> Void = {}
 
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+    ]
+
     var body: some View {
-        PaginatedSelectionGrid(
-            items: balls,
-            selection: $selection,
-            rowsPerPage: 4,
-            title: { $0.displayName },
-            imageURL: { $0.spriteURL },
-            onChange: onChange
-        )
+        LazyVGrid(columns: columns, spacing: 10) {
+            ForEach(balls) { ball in
+                if ball == .poke {
+                    StandardBallGridCell(
+                        isSelected: selection == .poke,
+                        appearance: standardBallAppearance,
+                        onSelect: {
+                            selection = .poke
+                            onChange()
+                        },
+                        onCustomize: {
+                            selection = .poke
+                            onChange()
+                            onCustomizeStandardBall()
+                        }
+                    )
+                } else {
+                    SelectionGridCell(
+                        title: ball.displayName,
+                        subtitle: nil,
+                        imageURL: ball.spriteURL,
+                        isSelected: selection == ball
+                    ) {
+                        selection = ball
+                        onChange()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct StandardBallGridCell: View {
+    let isSelected: Bool
+    let appearance: StandardBall
+    let onSelect: () -> Void
+    let onCustomize: () -> Void
+
+    private var subtitle: String? {
+        guard isSelected, appearance != .poke else { return "Hold to change style" }
+        return appearance.displayName
+    }
+
+    private var imageURL: URL? {
+        isSelected ? appearance.spriteURL : StandardBall.poke.spriteURL
+    }
+
+    var body: some View {
+        cellContent
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .onTapGesture(perform: onSelect)
+            .onLongPressGesture(minimumDuration: 0.45, perform: onCustomize)
+    }
+
+    private var cellContent: some View {
+        VStack(spacing: 6) {
+            RemoteSpriteImage(url: imageURL, size: 36)
+                .frame(maxWidth: .infinity)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Poké Ball")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.75)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .top)
+        .background(isSelected ? Color.accentColor.opacity(0.18) : Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+        }
+        .accessibilityLabel("Poké Ball")
+        .accessibilityHint("Double tap to select. Touch and hold to change style.")
     }
 }
 

@@ -62,6 +62,19 @@ nonisolated enum CatchRuleSet: String, CaseIterable, Identifiable, Sendable {
 
     var isGen1: Bool { self == .gen1 }
 
+    /// Compact header label below "Gen" (e.g. `3–4`, `8–9`).
+    var headerGenerationValue: String {
+        switch self {
+        case .gen1: "1"
+        case .gen2: "2"
+        case .gen3to4: "3–4"
+        case .gen5: "5"
+        case .gen6: "6"
+        case .gen7: "7"
+        case .gen8to9: "8–9"
+        }
+    }
+
     static func resolved(storedRaw: String) -> CatchRuleSet {
         if storedRaw == "gen6to7" { return .gen7 }
         return CatchRuleSet(rawValue: storedRaw) ?? .gen1

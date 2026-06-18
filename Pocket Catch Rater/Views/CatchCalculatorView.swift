@@ -7,10 +7,9 @@ struct CatchCalculatorView: View {
     @AppStorage("selectedGeneration") private var legacyGenerationRaw = 0
 
     @State private var inputs = CatchInputs()
-    @State private var showRuleSetPicker = false
     @State private var showPokemonPicker = false
-    @State private var showBallPicker = false
     @State private var showBallConditions = false
+    @State private var showStandardBallSkinPicker = false
     @State private var showSettings = false
     @State private var catchResult: CatchResult?
 
@@ -24,7 +23,7 @@ struct CatchCalculatorView: View {
     }
 
     private var availableBalls: [CatchBall] {
-        CatchBall.balls(for: dataGeneration).filter { $0 != .safari }
+        CatchBall.pickerBalls(for: dataGeneration)
     }
 
     var body: some View {
@@ -32,86 +31,24 @@ struct CatchCalculatorView: View {
             CompactResultsHeader(
                 result: catchResult,
                 species: inputs.species,
-                ruleSet: selectedRuleSet
+                ruleSet: Binding(
+                    get: { selectedRuleSet },
+                    set: { selectedRuleSet = $0 }
+                ),
+                level: Binding(
+                    get: { inputs.level },
+                    set: { inputs.level = $0 }
+                ),
+                onSpeciesTap: { showPokemonPicker = true },
+                onLevelChange: { recalculate() },
+                onRuleSetChange: selectRuleSet
             )
 
             Divider()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    inputSection(title: "Catch Rules") {
-                        Button {
-                            showRuleSetPicker = true
-                        } label: {
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Formula")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Text(selectedRuleSet.displayName)
-                                        .font(.body.weight(.medium))
-                                    Text(selectedRuleSet.gamesLabel)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .padding(12)
-                            .background(Color(.secondarySystemGroupedBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    inputSection(title: "Pokémon") {
-                        Button {
-                            showPokemonPicker = true
-                        } label: {
-                            HStack(spacing: 12) {
-                                if let species = inputs.species {
-                                    RemoteSpriteImage(url: species.spriteURL, size: 40)
-                                }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Species")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Text(inputs.species?.displayName ?? "Choose…")
-                                        .font(.body.weight(.medium))
-                                        .foregroundStyle(inputs.species == nil ? .secondary : .primary)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .padding(12)
-                            .background(Color(.secondarySystemGroupedBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
-
-                        LevelWheelPicker(level: Binding(
-                            get: { inputs.level },
-                            set: { inputs.level = $0 }
-                        )) {
-                            recalculate()
-                        }
-
-                        if inputs.battleMode != .safari || selectedRuleSet.isGen1 {
-                            HPBarSlider(hpPercent: Binding(
-                                get: { inputs.hpPercent },
-                                set: { inputs.hpPercent = $0; recalculate() }
-                            ))
-                        } else {
-                            LabeledContent("HP", value: "100% (full)")
-                        }
-                    }
+                    hpRemainingSection
 
                     if selectedRuleSet.isGen1 {
                         Toggle("Safari Zone", isOn: Binding(
@@ -135,43 +72,44 @@ struct CatchCalculatorView: View {
                             ), in: 0...10)
                         }
                     } else {
-                        inputSection(title: "Capture") {
-                            Button {
-                                showBallPicker = true
-                            } label: {
-                                HStack(spacing: 12) {
-                                    RemoteSpriteImage(url: inputs.catchBall.spriteURL, size: 32)
+                        inputSection(title: "Status") {
+                            CompactStatusGrid(
+                                selection: Binding(
+                                    get: { inputs.status },
+                                    set: { inputs.status = $0 }
+                                ),
+                                onChange: recalculate
+                            )
+                        }
 
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Ball")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                        Text(inputs.catchBall.displayName)
-                                            .font(.body.weight(.medium))
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.tertiary)
-                                }
-                                .padding(12)
-                                .background(Color(.secondarySystemGroupedBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
-                            .buttonStyle(.plain)
+                        inputSection(title: "Ball") {
+                            SelectedCatchBallHeader(
+                                name: inputs.displayedBallName,
+                                spriteURL: inputs.displayedBallSpriteURL
+                            )
 
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Status")
+                            if let heavyBallLabel = heavyBallBonusLabel {
+                                Text(heavyBallLabel)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                CompactStatusGrid(
-                                    selection: Binding(
-                                        get: { inputs.status },
-                                        set: { inputs.status = $0 }
-                                    ),
-                                    onChange: recalculate
-                                )
+                                    .padding(.horizontal, 4)
                             }
+
+                            BallSelectionGrid(
+                                balls: availableBalls,
+                                selection: Binding(
+                                    get: { inputs.catchBall },
+                                    set: { inputs.catchBall = $0 }
+                                ),
+                                standardBallAppearance: Binding(
+                                    get: { inputs.standardBallAppearance },
+                                    set: { inputs.standardBallAppearance = $0 }
+                                ),
+                                onCustomizeStandardBall: {
+                                    showStandardBallSkinPicker = true
+                                },
+                                onChange: recalculate
+                            )
 
                             if showsBallConditions {
                                 Button {
@@ -216,15 +154,6 @@ struct CatchCalculatorView: View {
                 }
             }
         }
-        .sheet(isPresented: $showRuleSetPicker) {
-            GenerationPickerSheet(
-                selection: Binding(
-                    get: { selectedRuleSet },
-                    set: { selectedRuleSet = $0 }
-                ),
-                onChange: selectRuleSet
-            )
-        }
         .sheet(isPresented: $showPokemonPicker) {
             PokemonPickerView(
                 dataStore: dataStore,
@@ -239,22 +168,20 @@ struct CatchCalculatorView: View {
                 )
             )
         }
-        .sheet(isPresented: $showBallPicker) {
-            BallPickerSheet(
-                balls: availableBalls,
-                selection: Binding(
-                    get: { inputs.catchBall },
-                    set: { inputs.catchBall = $0 }
-                ),
-                onChange: recalculate
-            )
-            .id(selectedRuleSetRaw)
-        }
         .sheet(isPresented: $showBallConditions) {
             BallConditionsSheet(
                 inputs: $inputs,
                 ruleSet: selectedRuleSet,
                 onChange: recalculate
+            )
+        }
+        .sheet(isPresented: $showStandardBallSkinPicker) {
+            StandardBallSkinSheet(
+                generation: dataGeneration,
+                selection: Binding(
+                    get: { inputs.standardBallAppearance },
+                    set: { inputs.standardBallAppearance = $0 }
+                )
             )
         }
         .sheet(isPresented: $showSettings) {
@@ -272,7 +199,10 @@ struct CatchCalculatorView: View {
             inputs.generation = dataGeneration
             ensureValidBallSelection()
             recalculate()
-            Task { await dataStore.ensureGameData(for: dataGeneration) }
+            Task {
+                await dataStore.ensureGameData(for: dataGeneration)
+                await refreshDefaultSpeciesIfNeeded()
+            }
         }
         .onChange(of: selectedRuleSetRaw) { _, _ in
             applyRuleSetChange()
@@ -289,6 +219,14 @@ struct CatchCalculatorView: View {
             && inputs.catchBall != .master
     }
 
+    private var heavyBallBonusLabel: String? {
+        guard inputs.catchBall == .heavy else { return nil }
+        guard let weightKg = inputs.species?.weightKg else {
+            return "Heavy Ball bonus needs species weight (sync details)"
+        }
+        return HeavyBallMath.info(weightKg: weightKg, ruleSet: selectedRuleSet).label
+    }
+
     private var activeConditionCount: Int {
         var count = 0
         if inputs.isFishing { count += 1 }
@@ -301,6 +239,31 @@ struct CatchCalculatorView: View {
         if inputs.playerLevel != 50 { count += 1 }
         if inputs.battleTurn != 1 { count += 1 }
         return count
+    }
+
+    @ViewBuilder
+    private var hpRemainingSection: some View {
+        let showsHPBar = inputs.battleMode != .safari || selectedRuleSet.isGen1
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("HP Remaining")
+                    .font(.headline)
+
+                Spacer()
+
+                Text(showsHPBar ? "\(Int(inputs.hpPercent))%" : "100%")
+                    .font(.title3.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(showsHPBar ? .primary : .secondary)
+            }
+
+            if showsHPBar {
+                HPBarSlider(hpPercent: Binding(
+                    get: { inputs.hpPercent },
+                    set: { inputs.hpPercent = $0; recalculate() }
+                ))
+            }
+        }
     }
 
     @ViewBuilder
@@ -329,7 +292,11 @@ struct CatchCalculatorView: View {
 
         if let species = inputs.species,
            (try? dataStore.isSpeciesAvailable(species, in: dataGeneration)) == false {
-            inputs.species = nil
+            inputs.species = PokemonSpecies.fallbackPikachu
+            applySpeciesDefaults(from: inputs.species)
+        } else if inputs.species == nil {
+            inputs.species = PokemonSpecies.fallbackPikachu
+            applySpeciesDefaults(from: inputs.species)
         }
 
         ensureValidBallSelection()
@@ -343,6 +310,8 @@ struct CatchCalculatorView: View {
     }
 
     private func ensureValidBallSelection() {
+        inputs.normalizeStandardBallSelection(for: dataGeneration)
+
         let balls = availableBalls
         guard !balls.isEmpty else { return }
 
@@ -356,6 +325,33 @@ struct CatchCalculatorView: View {
     private func applySpeciesDefaults(from species: PokemonSpecies?) {
         guard let species else { return }
         inputs.hasWaterOrBugType = species.hasWaterOrBugType
+    }
+
+    private func refreshDefaultSpeciesIfNeeded() async {
+        guard inputs.species?.id == PokemonSpecies.defaultSpeciesID
+            || inputs.species == nil else {
+            if inputs.species?.hasCompleteDetails == false,
+               let speciesID = inputs.species?.id,
+               let detailed = try? await dataStore.ensureSpeciesDetails(for: speciesID) {
+                inputs.species = detailed
+                applySpeciesDefaults(from: detailed)
+                recalculate()
+            }
+            return
+        }
+
+        if let cached = try? dataStore.species(id: PokemonSpecies.defaultSpeciesID), cached.hasCompleteDetails {
+            inputs.species = cached
+            applySpeciesDefaults(from: cached)
+            recalculate()
+            return
+        }
+
+        if let detailed = try? await dataStore.ensureSpeciesDetails(for: PokemonSpecies.defaultSpeciesID) {
+            inputs.species = detailed
+            applySpeciesDefaults(from: detailed)
+            recalculate()
+        }
     }
 
     private func recalculate() {

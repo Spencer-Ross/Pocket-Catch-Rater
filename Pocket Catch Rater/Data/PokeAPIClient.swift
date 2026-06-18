@@ -145,7 +145,8 @@ nonisolated final class PokeAPIClient: Sendable {
             baseHP: baseHP,
             catchRate: speciesValue.captureRate,
             type1: sortedTypes.first,
-            type2: sortedTypes.count > 1 ? sortedTypes[1] : nil
+            type2: sortedTypes.count > 1 ? sortedTypes[1] : nil,
+            weightKg: Double(pokemonValue.weight) / 10.0
         )
     }
 
@@ -247,6 +248,7 @@ nonisolated private struct PokemonSpeciesResponse: Decodable, Sendable {
 }
 
 nonisolated private struct PokemonResponse: Decodable, Sendable {
+    let weight: Int
     let stats: [StatEntry]
     let types: [TypeSlot]
 }

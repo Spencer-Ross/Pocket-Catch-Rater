@@ -1,13 +1,14 @@
 import Foundation
 
 struct CatchInputs: Sendable {
-    var species: PokemonSpecies?
+    var species: PokemonSpecies? = PokemonSpecies.fallbackPikachu
     var generation: PokemonGeneration = .gen1
     var battleMode: BattleMode = .wild
     var level: Int = 30
     var playerLevel: Int = 50
     var hpPercent: Double = 100
     var catchBall: CatchBall = .poke
+    var standardBallAppearance: StandardBall = .poke
     var status: StatusCondition = .none
     var battleTurn: Int = 1
     var rocksThrown: Int = 0
@@ -26,6 +27,32 @@ struct CatchInputs: Sendable {
     var effectiveBall: CatchBall {
         if battleMode == .safari { return .safari }
         return catchBall
+    }
+
+    var displayedBallName: String {
+        if catchBall == .poke {
+            return standardBallAppearance.displayName
+        }
+        return catchBall.displayName
+    }
+
+    var displayedBallSpriteURL: URL? {
+        if catchBall == .poke {
+            return standardBallAppearance.spriteURL
+        }
+        return catchBall.spriteURL
+    }
+
+    mutating func normalizeStandardBallSelection(for generation: PokemonGeneration) {
+        if let appearance = StandardBall(catchBall: catchBall), catchBall != .poke {
+            standardBallAppearance = appearance
+            catchBall = .poke
+        }
+
+        let availableAppearances = StandardBall.available(for: generation)
+        if !availableAppearances.contains(standardBallAppearance) {
+            standardBallAppearance = .poke
+        }
     }
 
     var effectiveStatus: StatusCondition {

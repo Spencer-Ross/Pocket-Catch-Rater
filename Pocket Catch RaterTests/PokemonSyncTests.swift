@@ -26,6 +26,42 @@ final class PokemonSyncTests: XCTestCase {
         XCTAssertNotNil(try database.metadataValue(for: "roster_source_generation_1"))
     }
 
+    func testEnsureSpeciesDetailsBackfillsMissingWeight() async throws {
+        let database = try PokemonDatabase(inMemory: true)
+        let mock = MockPokemonAPIClient()
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+
+        try database.upsertSpecies(
+            [SpeciesDTO(id: 25, name: "Pikachu", generation: 1, baseHP: 35, catchRate: 190, type1: "electric")],
+            timestamp: timestamp
+        )
+
+        let stale = try XCTUnwrap(try database.species(id: 25))
+        XCTAssertTrue(stale.hasDetails)
+        XCTAssertNil(stale.weightKg)
+
+        mock.speciesDetails[25] = SpeciesDTO(
+            id: 25,
+            name: "Pikachu",
+            generation: 1,
+            baseHP: 35,
+            catchRate: 190,
+            type1: "electric",
+            weightKg: 6.0
+        )
+
+        let repository = PokemonRepository(database: database, apiClient: mock)
+        let detailed = try await repository.ensureSpeciesDetails(speciesID: 25)
+
+        XCTAssertEqual(detailed.weightKg, 6.0)
+        XCTAssertTrue(detailed.hasCompleteDetails)
+        XCTAssertEqual(mock.fetchSpeciesDetailsCallCount[25], 1)
+
+        let cached = try await repository.ensureSpeciesDetails(speciesID: 25)
+        XCTAssertEqual(cached.weightKg, 6.0)
+        XCTAssertEqual(mock.fetchSpeciesDetailsCallCount[25], 1)
+    }
+
     func testEnsureSpeciesDetailsFetchesAndCaches() async throws {
         let database = try PokemonDatabase(inMemory: true)
         let mock = MockPokemonAPIClient()
@@ -33,7 +69,15 @@ final class PokemonSyncTests: XCTestCase {
             1: [RosterEntryDTO(id: 25, name: "Pikachu", generation: 1)],
         ]
         mock.speciesDetails = [
-            25: SpeciesDTO(id: 25, name: "Pikachu", generation: 1, baseHP: 35, catchRate: 190, type1: "electric"),
+            25: SpeciesDTO(
+                id: 25,
+                name: "Pikachu",
+                generation: 1,
+                baseHP: 35,
+                catchRate: 190,
+                type1: "electric",
+                weightKg: 6.0
+            ),
         ]
 
         let repository = PokemonRepository(database: database, apiClient: mock)

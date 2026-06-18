@@ -11,6 +11,10 @@ enum GameMediaURL {
     }
 
     static func ballSprite(for ball: CatchBall) -> URL? {
-        URL(string: "\(itemSpriteBase)/\(ball.itemSlug).png")
+        itemSprite(slug: ball.itemSlug)
+    }
+
+    static func itemSprite(slug: String) -> URL? {
+        URL(string: "\(itemSpriteBase)/\(slug).png")
     }
 }

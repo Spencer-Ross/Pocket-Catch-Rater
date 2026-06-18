@@ -8,6 +8,7 @@ struct PokemonSpecies: Identifiable, Sendable, Hashable {
     let catchRate: Int
     let type1: String?
     let type2: String?
+    let weightKg: Double?
     let hasDetails: Bool
 
     init(
@@ -18,6 +19,7 @@ struct PokemonSpecies: Identifiable, Sendable, Hashable {
         catchRate: Int,
         type1: String? = nil,
         type2: String? = nil,
+        weightKg: Double? = nil,
         hasDetails: Bool = true
     ) {
         self.id = id
@@ -27,12 +29,37 @@ struct PokemonSpecies: Identifiable, Sendable, Hashable {
         self.catchRate = catchRate
         self.type1 = type1
         self.type2 = type2
+        self.weightKg = weightKg
         self.hasDetails = hasDetails
+    }
+
+    func weightClass(for ruleSet: CatchRuleSet) -> PokemonWeightClass? {
+        guard let weightKg else { return nil }
+        return PokemonWeightClass.classify(weightKg: weightKg, formulaFamily: ruleSet.formulaFamily)
+    }
+
+    /// True when catch stats and weight are available locally (not just a roster stub).
+    var hasCompleteDetails: Bool {
+        hasDetails && weightKg != nil
     }
 
     var displayName: String {
         String(format: "#%03d %@", id, name)
     }
+
+    static let defaultSpeciesID = 25
+
+    /// Offline-safe default used until cached/API stats are available.
+    static let fallbackPikachu = PokemonSpecies(
+        id: defaultSpeciesID,
+        name: "Pikachu",
+        generation: 1,
+        baseHP: 35,
+        catchRate: 190,
+        type1: "electric",
+        type2: nil,
+        weightKg: 6.0
+    )
 
     var spriteURL: URL? {
         GameMediaURL.pokemonSprite(speciesID: id)
@@ -51,6 +78,7 @@ struct SpeciesSeedEntry: Codable {
     let catchRate: Int
     let type1: String?
     let type2: String?
+    let weightKg: Double?
 
     init(
         id: Int,
@@ -59,7 +87,8 @@ struct SpeciesSeedEntry: Codable {
         baseHP: Int,
         catchRate: Int,
         type1: String? = nil,
-        type2: String? = nil
+        type2: String? = nil,
+        weightKg: Double? = nil
     ) {
         self.id = id
         self.name = name
@@ -68,6 +97,7 @@ struct SpeciesSeedEntry: Codable {
         self.catchRate = catchRate
         self.type1 = type1
         self.type2 = type2
+        self.weightKg = weightKg
     }
 }
 
@@ -85,6 +115,7 @@ nonisolated struct SpeciesDTO: Sendable {
     let catchRate: Int
     let type1: String?
     let type2: String?
+    let weightKg: Double?
 
     init(
         id: Int,
@@ -93,7 +124,8 @@ nonisolated struct SpeciesDTO: Sendable {
         baseHP: Int,
         catchRate: Int,
         type1: String? = nil,
-        type2: String? = nil
+        type2: String? = nil,
+        weightKg: Double? = nil
     ) {
         self.id = id
         self.name = name
@@ -102,5 +134,6 @@ nonisolated struct SpeciesDTO: Sendable {
         self.catchRate = catchRate
         self.type1 = type1
         self.type2 = type2
+        self.weightKg = weightKg
     }
 }

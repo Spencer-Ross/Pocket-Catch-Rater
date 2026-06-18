@@ -115,6 +115,10 @@ final class PokemonDataStore {
         try repository.isSpeciesAvailable(species, in: gameGeneration)
     }
 
+    func species(id: Int) throws -> PokemonSpecies? {
+        try repository.species(id: id)
+    }
+
     func clearCacheAndResync() async {
         syncWorkerTask?.cancel()
         syncWorkerTask = nil
