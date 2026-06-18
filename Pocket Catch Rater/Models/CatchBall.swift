@@ -97,7 +97,7 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
         case .friend, .level, .lure, .heavy, .love, .moon, .fast: 2
         case .nest, .repeatBall, .timer, .premier, .luxury, .dive, .net: 3
         case .dusk, .heal, .quick: 4
-        case .dream: 5
+        case .dream: 8
         case .beast: 7
         }
     }
@@ -109,7 +109,7 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// Cosmetic-only standard-ball skins hidden from the main picker.
-    static let cosmeticStandardBalls: Set<CatchBall> = [.premier, .luxury, .heal]
+    static let cosmeticStandardBalls: Set<CatchBall> = [.friend, .premier, .luxury, .heal]
 
     static func pickerBalls(for generation: PokemonGeneration) -> [CatchBall] {
         balls(for: generation).filter { $0 != .safari && !cosmeticStandardBalls.contains($0) }
@@ -137,10 +137,6 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
             case .love where gen == 2: rank = 21
             default: break
             }
-        }
-
-        if gen == 5 || gen == 6, self == .dream {
-            rank = 19
         }
 
         if gen >= 7, self == .beast {
@@ -237,7 +233,22 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .master:
             return 1
-        case .poke, .premier, .luxury, .heal, .friend, .heavy, .love, .moon, .fast:
+        case .poke, .premier, .luxury, .heal, .friend, .heavy:
+            return 1
+        case .love:
+            if generation.rawValue >= 8, context.loveBallOppositeGender {
+                return SpecialtyBallMath.gen8LoveBallMultiplier
+            }
+            return 1
+        case .moon:
+            if generation.rawValue >= 8, context.moonBallBonusActive {
+                return SpecialtyBallMath.gen8MoonBallMultiplier
+            }
+            return 1
+        case .fast:
+            if generation.rawValue >= 8, context.fastBallBonusActive {
+                return SpecialtyBallMath.gen8FastBallMultiplier
+            }
             return 1
         case .great:
             return 1.5
@@ -274,12 +285,13 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
         case .dusk:
             return context.isDarkTerrain ? (generation.rawValue >= 8 ? 3 : 3.5) : 1
         case .dream:
-            if generation.rawValue >= 8 {
-                return context.status == .sleep ? 4 : 1
+            if generation.rawValue >= 8, context.status == .sleep {
+                return SpecialtyBallMath.gen8DreamBallMultiplier
             }
             return 1
         case .beast:
-            return context.isUltraBeast ? 5 : (410.0 / 4096.0)
+            guard generation.rawValue >= 7 else { return 1 }
+            return SpecialtyBallMath.beastBallBonus(isUltraBeast: context.isUltraBeast)
         }
     }
 }
@@ -296,4 +308,7 @@ struct BallContext: Sendable {
     var hasWaterOrBugType: Bool = false
     var isUltraBeast: Bool = false
     var pokedexCaught: Int = 600
+    var loveBallOppositeGender: Bool = false
+    var moonBallBonusActive: Bool = false
+    var fastBallBonusActive: Bool = false
 }

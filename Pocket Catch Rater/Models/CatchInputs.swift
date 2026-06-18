@@ -20,9 +20,13 @@ struct CatchInputs: Sendable {
     var isDarkTerrain: Bool = false
     var isRepeatRegistered: Bool = true
     var hasWaterOrBugType: Bool = false
-    var isUltraBeast: Bool = false
     var isThickGrass: Bool = false
     var pokedexCaught: Int = 600
+
+    // Gen 8–9 apricorn ball conditions (header toggles)
+    var loveBallOppositeGender: Bool = false
+    var moonBallBonusActive: Bool = false
+    var fastBallBonusActive: Bool = false
 
     var effectiveBall: CatchBall {
         if battleMode == .safari { return .safari }
@@ -63,6 +67,19 @@ struct CatchInputs: Sendable {
         battleMode == .safari ? 100 : hpPercent
     }
 
+    mutating func syncSpecialtyBallDefaults() {
+        guard let species else { return }
+
+        switch catchBall {
+        case .moon:
+            moonBallBonusActive = MoonBallEligibility.isEligible(speciesID: species.id)
+        case .fast:
+            fastBallBonusActive = FastBallEligibility.isEligible(baseSpeed: species.baseSpeed)
+        default:
+            break
+        }
+    }
+
     var ballContext: BallContext {
         BallContext(
             playerLevel: playerLevel,
@@ -74,8 +91,11 @@ struct CatchInputs: Sendable {
             isDarkTerrain: isDarkTerrain,
             isRepeatRegistered: isRepeatRegistered,
             hasWaterOrBugType: hasWaterOrBugType,
-            isUltraBeast: isUltraBeast,
-            pokedexCaught: pokedexCaught
+            isUltraBeast: species?.isUltraBeast ?? false,
+            pokedexCaught: pokedexCaught,
+            loveBallOppositeGender: loveBallOppositeGender,
+            moonBallBonusActive: moonBallBonusActive,
+            fastBallBonusActive: fastBallBonusActive
         )
     }
 }

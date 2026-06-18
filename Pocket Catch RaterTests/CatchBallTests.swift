@@ -24,4 +24,11 @@ final class CatchBallTests: XCTestCase {
         let prefix = Array(balls.prefix(8))
         XCTAssertEqual(prefix, [.poke, .great, .ultra, .master, .timer, .net, .repeatBall, .dive])
     }
+
+    func testDreamBallOnlyInGen8And9Picker() {
+        XCTAssertFalse(CatchBall.pickerBalls(for: .gen5).contains(.dream))
+        XCTAssertFalse(CatchBall.pickerBalls(for: .gen7).contains(.dream))
+        XCTAssertTrue(CatchBall.pickerBalls(for: .gen8).contains(.dream))
+        XCTAssertTrue(CatchBall.pickerBalls(for: .gen9).contains(.dream))
+    }
 }

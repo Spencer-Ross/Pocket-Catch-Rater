@@ -266,7 +266,8 @@ nonisolated final class PokemonRepository {
                 catchRate: $0.catchRate,
                 type1: $0.type1,
                 type2: $0.type2,
-                weightKg: $0.weightKg
+                weightKg: $0.weightKg,
+                baseSpeed: $0.baseSpeed
             )
         }
 
