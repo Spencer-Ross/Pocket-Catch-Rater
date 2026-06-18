@@ -17,10 +17,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Select Xcode 26
+        run: sudo xcode-select -switch /Applications/Xcode_26.3.app
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
       - name: Bootstrap Swift packages
         run: bash Scripts/bootstrap_packages.sh
 
       - name: Build unsigned IPA
+        env:
+          # Project targets 26.5 locally; macos-15 runners ship iOS 26.2 SDK with Xcode 26.3.
+          IPHONEOS_DEPLOYMENT_TARGET: "26.2"
         run: bash Scripts/build_ipa_unsigned.sh
 
       - name: Prepare release asset

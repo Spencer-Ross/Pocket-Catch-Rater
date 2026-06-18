@@ -21,15 +21,22 @@ mkdir -p "$OUTPUT_DIR"
 rm -rf "$DERIVED_DATA"
 
 echo "Building unsigned $CONFIGURATION for iOS device (arm64)..."
+XCODEBUILD_SETTINGS=(
+  CODE_SIGNING_ALLOWED=NO
+  CODE_SIGN_IDENTITY=""
+  CODE_SIGNING_REQUIRED=NO
+  DEVELOPMENT_TEAM=""
+)
+if [[ -n "${IPHONEOS_DEPLOYMENT_TARGET:-}" ]]; then
+  XCODEBUILD_SETTINGS+=(IPHONEOS_DEPLOYMENT_TARGET="$IPHONEOS_DEPLOYMENT_TARGET")
+fi
+
 xcodebuild \
   -scheme "$SCHEME" \
   -configuration "$CONFIGURATION" \
   -destination "generic/platform=iOS" \
   -derivedDataPath "$DERIVED_DATA" \
-  CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGN_IDENTITY="" \
-  CODE_SIGNING_REQUIRED=NO \
-  DEVELOPMENT_TEAM="" \
+  "${XCODEBUILD_SETTINGS[@]}" \
   build
 
 APP_PATH="$DERIVED_DATA/Build/Products/${CONFIGURATION}-iphoneos/${APP_NAME}.app"
