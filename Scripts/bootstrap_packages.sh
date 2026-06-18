@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GRDB_DIR="$ROOT/SourcePackages/checkouts/GRDB.swift"
-GRDB_VERSION="7.11.0"
+GRDB_VERSION="v7.11.0"
 
 if [[ -d "$GRDB_DIR/.git" ]]; then
   echo "GRDB already present at $GRDB_DIR"
