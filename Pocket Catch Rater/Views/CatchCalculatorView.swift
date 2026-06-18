@@ -85,11 +85,12 @@ struct CatchCalculatorView: View {
                         inputSection(title: "Ball") {
                             SelectedCatchBallHeader(
                                 name: inputs.displayedBallName,
-                                spriteURL: inputs.displayedBallSpriteURL
+                                spriteURL: inputs.displayedBallSpriteURL,
+                                conditionToggle: specialtyBallConditionToggle
                             )
 
-                            if let heavyBallLabel = heavyBallBonusLabel {
-                                Text(heavyBallLabel)
+                            if let bonusLabel = activeBallBonusLabel {
+                                Text(bonusLabel)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .padding(.horizontal, 4)
@@ -99,7 +100,10 @@ struct CatchCalculatorView: View {
                                 balls: availableBalls,
                                 selection: Binding(
                                     get: { inputs.catchBall },
-                                    set: { inputs.catchBall = $0 }
+                                    set: {
+                                        inputs.catchBall = $0
+                                        inputs.syncSpecialtyBallDefaults()
+                                    }
                                 ),
                                 standardBallAppearance: Binding(
                                     get: { inputs.standardBallAppearance },
@@ -219,6 +223,74 @@ struct CatchCalculatorView: View {
             && inputs.catchBall != .master
     }
 
+    private var specialtyBallConditionToggle: SelectedCatchBallHeader.ConditionToggle? {
+        guard SpecialtyBallMath.showsConditionToggle(for: inputs.catchBall, ruleSet: selectedRuleSet),
+              let label = SpecialtyBallMath.toggleLabel(for: inputs.catchBall) else {
+            return nil
+        }
+
+        switch inputs.catchBall {
+        case .love:
+            return SelectedCatchBallHeader.ConditionToggle(
+                label: label,
+                isOn: Binding(
+                    get: { inputs.loveBallOppositeGender },
+                    set: {
+                        inputs.loveBallOppositeGender = $0
+                        recalculate()
+                    }
+                )
+            )
+        case .moon:
+            return SelectedCatchBallHeader.ConditionToggle(
+                label: label,
+                isOn: Binding(
+                    get: { inputs.moonBallBonusActive },
+                    set: {
+                        inputs.moonBallBonusActive = $0
+                        recalculate()
+                    }
+                )
+            )
+        case .fast:
+            return SelectedCatchBallHeader.ConditionToggle(
+                label: label,
+                isOn: Binding(
+                    get: { inputs.fastBallBonusActive },
+                    set: {
+                        inputs.fastBallBonusActive = $0
+                        recalculate()
+                    }
+                ),
+                isEnabled: inputs.species?.baseSpeed != nil
+            )
+        default:
+            return nil
+        }
+    }
+
+    private var activeBallBonusLabel: String? {
+        if let heavyBallLabel = heavyBallBonusLabel {
+            return heavyBallLabel
+        }
+
+        if inputs.catchBall == .fast,
+           inputs.species?.baseSpeed == nil,
+           selectedRuleSet.formulaFamily == .gen8to9 {
+            return "Fast Ball bonus needs species speed (sync details)"
+        }
+
+        return SpecialtyBallMath.bonusLabel(
+            ball: inputs.catchBall,
+            ruleSet: selectedRuleSet,
+            loveOppositeGender: inputs.loveBallOppositeGender,
+            moonBonusActive: inputs.moonBallBonusActive,
+            fastBonusActive: inputs.fastBallBonusActive,
+            status: inputs.status,
+            species: inputs.species
+        )
+    }
+
     private var heavyBallBonusLabel: String? {
         guard inputs.catchBall == .heavy else { return nil }
         guard let weightKg = inputs.species?.weightKg else {
@@ -235,7 +307,6 @@ struct CatchCalculatorView: View {
         if inputs.isRepeatRegistered { count += 1 }
         if inputs.hasWaterOrBugType { count += 1 }
         if inputs.isThickGrass { count += 1 }
-        if inputs.isUltraBeast { count += 1 }
         if inputs.playerLevel != 50 { count += 1 }
         if inputs.battleTurn != 1 { count += 1 }
         return count
@@ -300,6 +371,7 @@ struct CatchCalculatorView: View {
         }
 
         ensureValidBallSelection()
+        inputs.syncSpecialtyBallDefaults()
         recalculate()
     }
 
@@ -325,6 +397,7 @@ struct CatchCalculatorView: View {
     private func applySpeciesDefaults(from species: PokemonSpecies?) {
         guard let species else { return }
         inputs.hasWaterOrBugType = species.hasWaterOrBugType
+        inputs.syncSpecialtyBallDefaults()
     }
 
     private func refreshDefaultSpeciesIfNeeded() async {

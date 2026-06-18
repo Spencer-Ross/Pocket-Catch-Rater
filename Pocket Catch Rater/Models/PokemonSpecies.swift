@@ -9,6 +9,7 @@ struct PokemonSpecies: Identifiable, Sendable, Hashable {
     let type1: String?
     let type2: String?
     let weightKg: Double?
+    let baseSpeed: Int?
     let hasDetails: Bool
 
     init(
@@ -20,6 +21,7 @@ struct PokemonSpecies: Identifiable, Sendable, Hashable {
         type1: String? = nil,
         type2: String? = nil,
         weightKg: Double? = nil,
+        baseSpeed: Int? = nil,
         hasDetails: Bool = true
     ) {
         self.id = id
@@ -30,6 +32,7 @@ struct PokemonSpecies: Identifiable, Sendable, Hashable {
         self.type1 = type1
         self.type2 = type2
         self.weightKg = weightKg
+        self.baseSpeed = baseSpeed
         self.hasDetails = hasDetails
     }
 
@@ -38,9 +41,9 @@ struct PokemonSpecies: Identifiable, Sendable, Hashable {
         return PokemonWeightClass.classify(weightKg: weightKg, formulaFamily: ruleSet.formulaFamily)
     }
 
-    /// True when catch stats and weight are available locally (not just a roster stub).
+    /// True when catch stats, weight, and speed are available locally (not just a roster stub).
     var hasCompleteDetails: Bool {
-        hasDetails && weightKg != nil
+        hasDetails && weightKg != nil && baseSpeed != nil
     }
 
     var displayName: String {
@@ -58,7 +61,8 @@ struct PokemonSpecies: Identifiable, Sendable, Hashable {
         catchRate: 190,
         type1: "electric",
         type2: nil,
-        weightKg: 6.0
+        weightKg: 6.0,
+        baseSpeed: 90
     )
 
     var spriteURL: URL? {
@@ -67,6 +71,10 @@ struct PokemonSpecies: Identifiable, Sendable, Hashable {
 
     var hasWaterOrBugType: Bool {
         [type1, type2].compactMap { $0?.lowercased() }.contains { $0 == "water" || $0 == "bug" }
+    }
+
+    var isUltraBeast: Bool {
+        UltraBeastEligibility.isUltraBeast(speciesID: id)
     }
 }
 
@@ -79,6 +87,7 @@ struct SpeciesSeedEntry: Codable {
     let type1: String?
     let type2: String?
     let weightKg: Double?
+    let baseSpeed: Int?
 
     init(
         id: Int,
@@ -88,7 +97,8 @@ struct SpeciesSeedEntry: Codable {
         catchRate: Int,
         type1: String? = nil,
         type2: String? = nil,
-        weightKg: Double? = nil
+        weightKg: Double? = nil,
+        baseSpeed: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -98,6 +108,7 @@ struct SpeciesSeedEntry: Codable {
         self.type1 = type1
         self.type2 = type2
         self.weightKg = weightKg
+        self.baseSpeed = baseSpeed
     }
 }
 
@@ -116,6 +127,7 @@ nonisolated struct SpeciesDTO: Sendable {
     let type1: String?
     let type2: String?
     let weightKg: Double?
+    let baseSpeed: Int?
 
     init(
         id: Int,
@@ -125,7 +137,8 @@ nonisolated struct SpeciesDTO: Sendable {
         catchRate: Int,
         type1: String? = nil,
         type2: String? = nil,
-        weightKg: Double? = nil
+        weightKg: Double? = nil,
+        baseSpeed: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -135,5 +148,6 @@ nonisolated struct SpeciesDTO: Sendable {
         self.type1 = type1
         self.type2 = type2
         self.weightKg = weightKg
+        self.baseSpeed = baseSpeed
     }
 }

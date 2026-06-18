@@ -1,0 +1,57 @@
+name: Release IPA
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-ipa:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bootstrap Swift packages
+        run: bash Scripts/bootstrap_packages.sh
+
+      - name: Build unsigned IPA
+        run: bash Scripts/build_ipa_unsigned.sh
+
+      - name: Prepare release asset
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="manual-${GITHUB_RUN_NUMBER}"
+          fi
+          DEST="build/ipa/PocketCatchRater-v${VERSION}-unsigned.ipa"
+          cp build/ipa/PocketCatchRater-unsigned.ipa "$DEST"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "IPA_PATH=$DEST" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.IPA_PATH }}
+          generate_release_notes: true
+          body: |
+            Unsigned Release IPA for sideloading via LiveContainer, SideStore, or AltStore.
+
+            ### Install
+            1. Download **PocketCatchRater-v${{ env.VERSION }}-unsigned.ipa** below
+            2. Import into LiveContainer (or your sideload tool)
+            3. If needed, enable JIT-less signing and import your certificate from SideStore/AltStore
+
+      - name: Upload workflow artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocket-catch-rater-ipa
+          path: ${{ env.IPA_PATH }}

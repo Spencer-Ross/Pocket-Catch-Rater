@@ -47,13 +47,15 @@ final class PokemonSyncTests: XCTestCase {
             baseHP: 35,
             catchRate: 190,
             type1: "electric",
-            weightKg: 6.0
+            weightKg: 6.0,
+            baseSpeed: 90
         )
 
         let repository = PokemonRepository(database: database, apiClient: mock)
         let detailed = try await repository.ensureSpeciesDetails(speciesID: 25)
 
         XCTAssertEqual(detailed.weightKg, 6.0)
+        XCTAssertEqual(detailed.baseSpeed, 90)
         XCTAssertTrue(detailed.hasCompleteDetails)
         XCTAssertEqual(mock.fetchSpeciesDetailsCallCount[25], 1)
 
@@ -76,7 +78,8 @@ final class PokemonSyncTests: XCTestCase {
                 baseHP: 35,
                 catchRate: 190,
                 type1: "electric",
-                weightKg: 6.0
+                weightKg: 6.0,
+                baseSpeed: 90
             ),
         ]
 

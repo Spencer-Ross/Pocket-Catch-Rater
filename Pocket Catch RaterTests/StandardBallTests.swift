@@ -5,6 +5,7 @@ final class StandardBallTests: XCTestCase {
     func testPickerBallsExcludeCosmeticStandardBalls() {
         let pickerBalls = CatchBall.pickerBalls(for: .gen4)
         XCTAssertTrue(pickerBalls.contains(.poke))
+        XCTAssertFalse(pickerBalls.contains(.friend))
         XCTAssertFalse(pickerBalls.contains(.premier))
         XCTAssertFalse(pickerBalls.contains(.luxury))
         XCTAssertFalse(pickerBalls.contains(.heal))
@@ -12,8 +13,19 @@ final class StandardBallTests: XCTestCase {
 
     func testStandardBallAvailabilityByGeneration() {
         XCTAssertEqual(StandardBall.available(for: .gen1), [.poke])
-        XCTAssertEqual(StandardBall.available(for: .gen3), [.poke, .premier, .luxury])
+        XCTAssertEqual(StandardBall.available(for: .gen2), [.poke, .friend])
+        XCTAssertEqual(StandardBall.available(for: .gen3), [.poke, .friend, .premier, .luxury])
         XCTAssertEqual(StandardBall.available(for: .gen4), StandardBall.allCases)
+    }
+
+    func testNormalizeMapsFriendBallToPokeWithAppearance() {
+        var inputs = CatchInputs()
+        inputs.catchBall = .friend
+
+        inputs.normalizeStandardBallSelection(for: .gen2)
+
+        XCTAssertEqual(inputs.catchBall, .poke)
+        XCTAssertEqual(inputs.standardBallAppearance, .friend)
     }
 
     func testNormalizeMapsLegacyCosmeticCatchBallToPokeWithAppearance() {

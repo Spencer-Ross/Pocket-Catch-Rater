@@ -136,6 +136,7 @@ nonisolated final class PokeAPIClient: Sendable {
         let speciesValue = try await species
         let pokemonValue = try await pokemon
         let baseHP = pokemonValue.stats.first(where: { $0.stat.name == "hp" })?.baseStat ?? 0
+        let baseSpeed = pokemonValue.stats.first(where: { $0.stat.name == "speed" })?.baseStat ?? 0
         let sortedTypes = pokemonValue.types.sorted { $0.slot < $1.slot }.map(\.type.name)
 
         return SpeciesDTO(
@@ -146,7 +147,8 @@ nonisolated final class PokeAPIClient: Sendable {
             catchRate: speciesValue.captureRate,
             type1: sortedTypes.first,
             type2: sortedTypes.count > 1 ? sortedTypes[1] : nil,
-            weightKg: Double(pokemonValue.weight) / 10.0
+            weightKg: Double(pokemonValue.weight) / 10.0,
+            baseSpeed: baseSpeed
         )
     }
 

@@ -3,6 +3,7 @@ import Foundation
 /// Cosmetic Poké Ball variants that share identical catch-rate mechanics.
 enum StandardBall: String, CaseIterable, Identifiable, Sendable {
     case poke
+    case friend
     case premier
     case luxury
     case heal
@@ -12,6 +13,7 @@ enum StandardBall: String, CaseIterable, Identifiable, Sendable {
     var displayName: String {
         switch self {
         case .poke: "Poké Ball"
+        case .friend: "Friend Ball"
         case .premier: "Premier Ball"
         case .luxury: "Luxury Ball"
         case .heal: "Heal Ball"
@@ -21,6 +23,7 @@ enum StandardBall: String, CaseIterable, Identifiable, Sendable {
     var itemSlug: String {
         switch self {
         case .poke: "poke-ball"
+        case .friend: "friend-ball"
         case .premier: "premier-ball"
         case .luxury: "luxury-ball"
         case .heal: "heal-ball"
@@ -34,6 +37,7 @@ enum StandardBall: String, CaseIterable, Identifiable, Sendable {
     var minimumGeneration: Int {
         switch self {
         case .poke: 1
+        case .friend: 2
         case .premier, .luxury: 3
         case .heal: 4
         }
@@ -42,6 +46,7 @@ enum StandardBall: String, CaseIterable, Identifiable, Sendable {
     init?(catchBall: CatchBall) {
         switch catchBall {
         case .poke: self = .poke
+        case .friend: self = .friend
         case .premier: self = .premier
         case .luxury: self = .luxury
         case .heal: self = .heal

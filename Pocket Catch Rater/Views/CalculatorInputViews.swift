@@ -62,6 +62,13 @@ struct CompactStatusGrid: View {
 struct SelectedCatchBallHeader: View {
     let name: String
     let spriteURL: URL?
+    var conditionToggle: ConditionToggle?
+
+    struct ConditionToggle {
+        let label: String
+        let isOn: Binding<Bool>
+        var isEnabled: Bool = true
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -69,8 +76,17 @@ struct SelectedCatchBallHeader: View {
 
             Text(name)
                 .font(.body.weight(.semibold))
+                .lineLimit(1)
 
-            Spacer()
+            Spacer(minLength: 8)
+
+            if let conditionToggle {
+                Toggle(conditionToggle.label, isOn: conditionToggle.isOn)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .disabled(!conditionToggle.isEnabled)
+            }
         }
         .padding(12)
         .background(Color(.secondarySystemGroupedBackground))
@@ -232,12 +248,6 @@ struct BallConditionsSheet: View {
                 if generationLevel >= 5 {
                     Section("Environment") {
                         Toggle("Thick grass / dark grass", isOn: binding(\.isThickGrass))
-                    }
-                }
-
-                if generationLevel >= 7 {
-                    Section("Ultra Beasts") {
-                        Toggle("Ultra Beast target", isOn: binding(\.isUltraBeast))
                     }
                 }
             }
