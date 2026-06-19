@@ -21,14 +21,28 @@ enum CaptureMath {
 
     // MARK: - Gen 2
 
+    /// Gen 2 capture formula: X = max(((3M - 2H) × C) / (3M), 1) + S
+    ///
+    /// The Game Boy's division routine only handles 8-bit divisors (0–255). If 3M > 255,
+    /// both 3M and 2H are divided by 4 (integer) before the formula to keep the divisor
+    /// in range. This gives the same result up to minor rounding errors for legal encounters.
     static func gen2ModifiedRate(
         maxHP: Int,
         currentHP: Int,
         catchRate: Int,
         status: StatusCondition
     ) -> Int {
-        let hpTerm = (3 * maxHP - 2 * currentHP) * catchRate
-        let base = max(hpTerm / (3 * maxHP), 1)
+        var tripleMax = 3 * maxHP
+        var doubleHP  = 2 * currentHP
+
+        if tripleMax > 255 {
+            tripleMax = tripleMax / 4
+            doubleHP  = doubleHP  / 4
+        }
+
+        guard tripleMax > 0 else { return 1 }   // division-by-zero guard (impossible for legal HP)
+        let hpTerm = (tripleMax - doubleHP) * catchRate
+        let base = max(hpTerm / tripleMax, 1)
         return min(base + status.gen2CaptureBonus, 255)
     }
 

@@ -82,11 +82,21 @@ struct CatchCalculatorView: View {
                             )
                         }
 
+                        if selectedRuleSet.representativeGeneration.rawValue >= 5 {
+                            Toggle("Dark/thick grass", isOn: Binding(
+                                get: { inputs.isThickGrass },
+                                set: { inputs.isThickGrass = $0; recalculate() }
+                            ))
+                            .padding(12)
+                            .background(Color(.secondarySystemGroupedBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+
                         inputSection(title: "Ball") {
                             SelectedCatchBallHeader(
                                 name: inputs.displayedBallName,
                                 spriteURL: inputs.displayedBallSpriteURL,
-                                conditionToggle: specialtyBallConditionToggle
+                                conditionControl: specialtyBallHeaderControl
                             )
 
                             if let bonusLabel = activeBallBonusLabel {
@@ -218,12 +228,45 @@ struct CatchCalculatorView: View {
     }
 
     private var showsBallConditions: Bool {
-        !selectedRuleSet.isGen1
-            && inputs.battleMode != .safari
-            && inputs.catchBall != .master
+        guard !selectedRuleSet.isGen1,
+              inputs.battleMode != .safari,
+              inputs.catchBall != .master else { return false }
+        // Gen 2 uses a sheet for Level Ball (player level stepper), Lure Ball (fishing),
+        // and Love Ball (same-gender toggle). Gen 3+: all conditions are inline/header.
+        return selectedRuleSet.formulaFamily == .gen2
     }
 
-    private var specialtyBallConditionToggle: SelectedCatchBallHeader.ConditionToggle? {
+    private var specialtyBallHeaderControl: SelectedCatchBallHeader.ConditionControl? {
+        guard SpecialtyBallMath.isModernGen(ruleSet: selectedRuleSet) else { return nil }
+
+        if SpecialtyBallMath.showsTurnPicker(for: inputs.catchBall, ruleSet: selectedRuleSet) {
+            return .turnPicker(
+                turn: Binding(
+                    get: { inputs.battleTurn },
+                    set: {
+                        inputs.battleTurn = max(1, min(30, $0))
+                        recalculate()
+                    }
+                ),
+                onChange: recalculate
+            )
+        }
+
+        if SpecialtyBallMath.showsPlayerLevelPicker(for: inputs.catchBall, ruleSet: selectedRuleSet) {
+            return .levelPicker(
+                level: Binding(
+                    get: { inputs.playerLevel },
+                    set: {
+                        inputs.playerLevel = min(100, max(1, $0))
+                        recalculate()
+                    }
+                ),
+                label: "Your Level",
+                sheetTitle: "Your Pokémon Level",
+                onChange: recalculate
+            )
+        }
+
         guard SpecialtyBallMath.showsConditionToggle(for: inputs.catchBall, ruleSet: selectedRuleSet),
               let label = SpecialtyBallMath.toggleLabel(for: inputs.catchBall) else {
             return nil
@@ -231,7 +274,7 @@ struct CatchCalculatorView: View {
 
         switch inputs.catchBall {
         case .love:
-            return SelectedCatchBallHeader.ConditionToggle(
+            return .toggle(
                 label: label,
                 isOn: Binding(
                     get: { inputs.loveBallOppositeGender },
@@ -242,7 +285,7 @@ struct CatchCalculatorView: View {
                 )
             )
         case .moon:
-            return SelectedCatchBallHeader.ConditionToggle(
+            return .toggle(
                 label: label,
                 isOn: Binding(
                     get: { inputs.moonBallBonusActive },
@@ -253,7 +296,7 @@ struct CatchCalculatorView: View {
                 )
             )
         case .fast:
-            return SelectedCatchBallHeader.ConditionToggle(
+            return .toggle(
                 label: label,
                 isOn: Binding(
                     get: { inputs.fastBallBonusActive },
@@ -263,6 +306,61 @@ struct CatchCalculatorView: View {
                     }
                 ),
                 isEnabled: inputs.species?.baseSpeed != nil
+            )
+        case .lure:
+            return .toggle(
+                label: label,
+                isOn: Binding(
+                    get: { inputs.isFishing },
+                    set: {
+                        inputs.isFishing = $0
+                        recalculate()
+                    }
+                )
+            )
+        case .dive:
+            return .toggle(
+                label: label,
+                isOn: Binding(
+                    get: { inputs.isWaterTerrain },
+                    set: {
+                        inputs.isWaterTerrain = $0
+                        recalculate()
+                    }
+                )
+            )
+        case .repeatBall:
+            return .toggle(
+                label: label,
+                isOn: Binding(
+                    get: { inputs.isRepeatRegistered },
+                    set: {
+                        inputs.isRepeatRegistered = $0
+                        recalculate()
+                    }
+                )
+            )
+        case .dusk:
+            return .toggle(
+                label: label,
+                isOn: Binding(
+                    get: { inputs.isDarkTerrain },
+                    set: {
+                        inputs.isDarkTerrain = $0
+                        recalculate()
+                    }
+                )
+            )
+        case .quick:
+            return .toggle(
+                label: label,
+                isOn: Binding(
+                    get: { inputs.quickBallFirstTurn },
+                    set: {
+                        inputs.quickBallFirstTurn = $0
+                        recalculate()
+                    }
+                )
             )
         default:
             return nil
@@ -283,10 +381,7 @@ struct CatchCalculatorView: View {
         return SpecialtyBallMath.bonusLabel(
             ball: inputs.catchBall,
             ruleSet: selectedRuleSet,
-            loveOppositeGender: inputs.loveBallOppositeGender,
-            moonBonusActive: inputs.moonBallBonusActive,
-            fastBonusActive: inputs.fastBallBonusActive,
-            status: inputs.status,
+            context: inputs.ballContext,
             species: inputs.species
         )
     }
@@ -301,14 +396,15 @@ struct CatchCalculatorView: View {
 
     private var activeConditionCount: Int {
         var count = 0
-        if inputs.isFishing { count += 1 }
-        if inputs.isWaterTerrain { count += 1 }
-        if inputs.isDarkTerrain { count += 1 }
-        if inputs.isRepeatRegistered { count += 1 }
-        if inputs.hasWaterOrBugType { count += 1 }
-        if inputs.isThickGrass { count += 1 }
-        if inputs.playerLevel != 50 { count += 1 }
-        if inputs.battleTurn != 1 { count += 1 }
+        if selectedRuleSet.formulaFamily != .gen8to9 {
+            if inputs.isFishing { count += 1 }
+            if inputs.isWaterTerrain { count += 1 }
+            if inputs.isDarkTerrain { count += 1 }
+            if inputs.isRepeatRegistered { count += 1 }
+            if inputs.battleTurn != 1 { count += 1 }
+            if inputs.hasWaterOrBugType { count += 1 }
+        }
+        if selectedRuleSet.formulaFamily != .gen8to9, inputs.playerLevel != 50 { count += 1 }
         return count
     }
 

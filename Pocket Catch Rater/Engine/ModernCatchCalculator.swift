@@ -33,6 +33,8 @@ struct ModernCatchCalculator: CatchCalculator {
             )
 
         case .gen2:
+            let multiplier = ball.gen2CatchRateMultiplier(context: context)
+
             let modifiedCatchRate: Int
             if ball == .heavy {
                 modifiedCatchRate = HeavyBallMath.adjustedSpeciesCatchRate(
@@ -42,9 +44,26 @@ struct ModernCatchCalculator: CatchCalculator {
                     formulaFamily: formulaFamily
                 )
             } else {
-                let multiplier = ball.gen2CatchRateMultiplier(context: context)
-                modifiedCatchRate = min(255, Int(floor(Double(catchRate) * multiplier)))
+                modifiedCatchRate = min(255, max(1, Int(floor(Double(catchRate) * multiplier))))
             }
+
+            // Level Ball in Gen 2 skips the HP formula entirely — X = C directly.
+            // This is the only non-Master-Ball way to guarantee capture without status in G/S/C.
+            if ball == .level {
+                let x = modifiedCatchRate
+                return CatchResult(
+                    probability: CaptureMath.gen2Probability(modifiedRate: x),
+                    hpFactor: x,
+                    wobbleCount: x >= 255 ? 0 : 1,
+                    isAtHPCap: false,
+                    maxHP: maxHP,
+                    currentHP: currentHP,
+                    speciesCatchRate: catchRate,
+                    effectiveCatchRate: x,
+                    ballBonus: multiplier
+                )
+            }
+
             let x = CaptureMath.gen2ModifiedRate(
                 maxHP: maxHP,
                 currentHP: currentHP,
@@ -60,7 +79,7 @@ struct ModernCatchCalculator: CatchCalculator {
                 currentHP: currentHP,
                 speciesCatchRate: catchRate,
                 effectiveCatchRate: x,
-                ballBonus: ball.gen2CatchRateMultiplier(context: context)
+                ballBonus: multiplier
             )
 
         case .gen3to4:

@@ -102,10 +102,13 @@ struct LevelPickerButton: View {
         case compact
         case full
         case headerInline
+        case ballHeader
     }
 
     @Binding var level: Int
     var style: Style = .compact
+    var label: String = "Level"
+    var sheetTitle: String = "Level"
     var onChange: () -> Void = {}
 
     @State private var showLevelPicker = false
@@ -117,13 +120,13 @@ struct LevelPickerButton: View {
             labelContent
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Level \(level)")
+        .accessibilityLabel("\(label) \(level)")
         .accessibilityHint("Opens level picker")
         .sheet(isPresented: $showLevelPicker) {
             NavigationStack {
                 LevelWheelControls(level: $level, onChange: onChange)
                     .padding(.top, 8)
-                    .navigationTitle("Level")
+                    .navigationTitle(sheetTitle)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
@@ -141,7 +144,7 @@ struct LevelPickerButton: View {
         switch style {
         case .headerInline:
             VStack(alignment: .leading, spacing: 2) {
-                Text("Level")
+                Text(label)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
@@ -153,9 +156,22 @@ struct LevelPickerButton: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
 
+        case .ballHeader:
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+
+                Text("\(level)")
+                    .font(.body.weight(.semibold))
+                    .monospacedDigit()
+            }
+            .contentShape(Rectangle())
+
         case .compact:
             VStack(spacing: 2) {
-                Text("Level")
+                Text(label)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
@@ -172,7 +188,7 @@ struct LevelPickerButton: View {
 
         case .full:
             VStack(spacing: 4) {
-                Text("Level")
+                Text(label)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)

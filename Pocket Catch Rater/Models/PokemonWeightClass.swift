@@ -38,7 +38,8 @@ nonisolated enum PokemonWeightClass: String, Sendable {
             }
         case .gen1, .gen2, .gen3to4, .gen5, .gen6to7:
             switch self {
-            case .light, .medium: -20
+            case .light: -20
+            case .medium: 0   // ≥102.4 kg to <204.8 kg — no bonus
             case .heavy: 20
             case .veryHeavy: 30
             case .ultraHeavy: 40
@@ -53,11 +54,13 @@ nonisolated enum PokemonWeightClass: String, Sendable {
         return .veryHeavy
     }
 
+    /// Gen 1–7 classic weight thresholds (Gen II source: dragonflycave.com/mechanics/gen-ii-capturing)
     private static func classifyClassic(weightKg: Double) -> PokemonWeightClass {
-        if weightKg < 204.8 { return .light }
-        if weightKg < 307.2 { return .heavy }
-        if weightKg < 409.6 { return .veryHeavy }
-        return .ultraHeavy
+        if weightKg < 102.4 { return .light }    // < 225.8 lbs → -20
+        if weightKg < 204.8 { return .medium }   // < 451.5 lbs → ±0
+        if weightKg < 307.2 { return .heavy }    // < 677.3 lbs → +20
+        if weightKg < 409.6 { return .veryHeavy }// < 903.0 lbs → +30
+        return .ultraHeavy                        // ≥ 903.0 lbs → +40
     }
 }
 

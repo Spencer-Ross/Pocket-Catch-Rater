@@ -207,15 +207,33 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
     }
 
     // MARK: - Gen 2 catch-rate multiplier (applied to C before formula)
+    // Source: dragonflycave.com/mechanics/gen-ii-capturing
 
     func gen2CatchRateMultiplier(context: BallContext) -> Double {
         switch self {
-        case .poke, .friend, .heavy, .love, .moon, .fast, .premier, .luxury, .heal:
+        case .poke, .friend, .premier, .luxury, .heal:
             return 1
         case .great: return 1.5
         case .ultra: return 2
-        case .safari, .lure: return 1.5
+        case .safari: return 1.5
+        case .lure:
+            // Gen 2: 3× when fishing (gen 3+ is also 3×, but guard in modernBallBonus handles that)
+            return context.isFishing ? 3 : 1
+        case .fast:
+            // Gen 2 Fast Ball only works for Grimer (#88), Tangela (#114), Magnemite (#81) — bug
+            return context.gen2FastBallActive ? 4 : 1
+        case .love:
+            // Gen 2 Love Ball: 8× for same species + same gender (NOT opposite — that's the bug)
+            return context.loveBallSameGender ? 8 : 1
+        case .moon:
+            // Gen 2 Moon Ball is bugged: checks the wrong evolution data field with the wrong constant,
+            // so no real Pokémon ever triggers it. Always 1×.
+            return 1
+        case .heavy:
+            // Handled separately via HeavyBallMath (additive, not multiplicative)
+            return 1
         case .level:
+            // Level Ball uses integer division thresholds per the Gen 2 formula
             let player = context.playerLevel
             let target = context.targetLevel
             if player / 4 >= target { return 8 }
@@ -277,7 +295,7 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
             let increment = 1229.0 / 4096.0
             return min(4, 1 + Double(turns - 1) * increment)
         case .quick:
-            return context.battleTurn == 1 ? 5 : 1
+            return context.quickBallFirstTurnActive ? 5 : 1
         case .dive:
             return context.isWaterTerrain ? (generation.rawValue >= 8 ? 3.5 : 3.5) : 1
         case .net:
@@ -308,7 +326,12 @@ struct BallContext: Sendable {
     var hasWaterOrBugType: Bool = false
     var isUltraBeast: Bool = false
     var pokedexCaught: Int = 600
+    // Gen 8–9 apricorn conditions
     var loveBallOppositeGender: Bool = false
     var moonBallBonusActive: Bool = false
     var fastBallBonusActive: Bool = false
+    var quickBallFirstTurnActive: Bool = true
+    // Gen 2 apricorn conditions
+    var loveBallSameGender: Bool = false   // Gen 2 Love Ball: bonus for same gender (the game bug)
+    var gen2FastBallActive: Bool = false   // Gen 2 Fast Ball: auto-detected (Grimer/Tangela/Magnemite)
 }
