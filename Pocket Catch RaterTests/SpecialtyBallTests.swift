@@ -68,13 +68,13 @@ final class SpecialtyBallTests: XCTestCase {
     }
 
     func testDreamBallBonusLabelWhenAsleep() {
+        var context = BallContext()
+        context.status = .sleep
+
         let label = SpecialtyBallMath.bonusLabel(
             ball: .dream,
             ruleSet: .gen8to9,
-            loveOppositeGender: false,
-            moonBonusActive: false,
-            fastBonusActive: false,
-            status: .sleep,
+            context: context,
             species: nil
         )
         XCTAssertEqual(label, "Dream Ball: 4× catch rate (asleep)")
@@ -131,10 +131,7 @@ final class SpecialtyBallTests: XCTestCase {
         let bonusLabel = SpecialtyBallMath.bonusLabel(
             ball: .beast,
             ruleSet: .gen8to9,
-            loveOppositeGender: false,
-            moonBonusActive: false,
-            fastBonusActive: false,
-            status: .none,
+            context: BallContext(),
             species: nihilego
         )
         XCTAssertEqual(bonusLabel, "Beast Ball: 5× catch rate (Ultra Beast)")
@@ -142,10 +139,7 @@ final class SpecialtyBallTests: XCTestCase {
         let penaltyLabel = SpecialtyBallMath.bonusLabel(
             ball: .beast,
             ruleSet: .gen7,
-            loveOppositeGender: false,
-            moonBonusActive: false,
-            fastBonusActive: false,
-            status: .none,
+            context: BallContext(),
             species: pikachu
         )
         XCTAssertEqual(penaltyLabel, "Beast Ball: 0.10× catch rate (not an Ultra Beast)")
@@ -180,5 +174,205 @@ final class SpecialtyBallTests: XCTestCase {
         )
         inputs.syncSpecialtyBallDefaults()
         XCTAssertTrue(inputs.fastBallBonusActive)
+    }
+
+    func testSituationalBallToggleLabels() {
+        XCTAssertEqual(SpecialtyBallMath.toggleLabel(for: .lure), "Fishing")
+        XCTAssertEqual(SpecialtyBallMath.toggleLabel(for: .dive), "In Water")
+        XCTAssertEqual(SpecialtyBallMath.toggleLabel(for: .repeatBall), "Caught")
+        XCTAssertEqual(SpecialtyBallMath.toggleLabel(for: .dusk), "Night/Cave")
+        XCTAssertEqual(SpecialtyBallMath.toggleLabel(for: .quick), "First Turn")
+        // Turn picker shown for all Gen 3+ (not Gen 1 or Gen 2)
+        XCTAssertTrue(SpecialtyBallMath.showsTurnPicker(for: .timer, ruleSet: .gen8to9))
+        XCTAssertTrue(SpecialtyBallMath.showsTurnPicker(for: .timer, ruleSet: .gen3to4))
+        XCTAssertFalse(SpecialtyBallMath.showsTurnPicker(for: .timer, ruleSet: .gen2))
+        XCTAssertFalse(SpecialtyBallMath.showsTurnPicker(for: .timer, ruleSet: .gen1))
+    }
+
+    func testGen9SituationalBallBonusLabels() {
+        var fishing = BallContext()
+        fishing.isFishing = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen8to9, context: fishing, species: nil),
+            "Lure Ball: 4× catch rate (fishing)"
+        )
+
+        var underwater = BallContext()
+        underwater.isWaterTerrain = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .dive, ruleSet: .gen8to9, context: underwater, species: nil),
+            "Dive Ball: 3.5× catch rate (in water)"
+        )
+
+        var caught = BallContext()
+        caught.isRepeatRegistered = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .repeatBall, ruleSet: .gen8to9, context: caught, species: nil),
+            "Repeat Ball: 3.5× catch rate (already caught)"
+        )
+
+        var dark = BallContext()
+        dark.isDarkTerrain = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .dusk, ruleSet: .gen8to9, context: dark, species: nil),
+            "Dusk Ball: 3× catch rate (night or cave)"
+        )
+
+        var turnFive = BallContext()
+        turnFive.battleTurn = 5
+        let timerLabel = SpecialtyBallMath.bonusLabel(
+            ball: .timer,
+            ruleSet: .gen8to9,
+            context: turnFive,
+            species: nil
+        )
+        XCTAssertEqual(timerLabel, "Timer Ball: 2.2× catch rate (turn 5)")
+        XCTAssertEqual(
+            SpecialtyBallMath.timerBallMultiplier(turn: 5),
+            CatchBall.timer.modernBallBonus(generation: .gen9, context: turnFive),
+            accuracy: 0.0001
+        )
+    }
+
+    func testQuickBallAlwaysUsesFirstTurnToggle() {
+        var active = BallContext()
+        active.quickBallFirstTurnActive = true
+        var inactive = BallContext()
+        inactive.quickBallFirstTurnActive = false
+
+        // Gen 9
+        XCTAssertEqual(CatchBall.quick.modernBallBonus(generation: .gen9, context: active), 5)
+        XCTAssertEqual(CatchBall.quick.modernBallBonus(generation: .gen9, context: inactive), 1)
+        // Gen 4
+        XCTAssertEqual(CatchBall.quick.modernBallBonus(generation: .gen4, context: active), 5)
+        XCTAssertEqual(CatchBall.quick.modernBallBonus(generation: .gen4, context: inactive), 1)
+
+        let labelGen9 = SpecialtyBallMath.bonusLabel(ball: .quick, ruleSet: .gen8to9, context: active, species: nil)
+        XCTAssertEqual(labelGen9, "Quick Ball: 5× catch rate (first turn)")
+
+        let labelGen4 = SpecialtyBallMath.bonusLabel(ball: .quick, ruleSet: .gen3to4, context: active, species: nil)
+        XCTAssertEqual(labelGen4, "Quick Ball: 5× catch rate (first turn)")
+
+        XCTAssertNil(SpecialtyBallMath.bonusLabel(ball: .quick, ruleSet: .gen3to4, context: inactive, species: nil))
+    }
+
+    func testGen9NetBallBonusLabelUsesSpeciesTypes() {
+        let magikarp = PokemonSpecies(
+            id: 129,
+            name: "Magikarp",
+            generation: 1,
+            baseHP: 20,
+            catchRate: 255,
+            type1: "water",
+            type2: nil
+        )
+        let pikachu = PokemonSpecies.fallbackPikachu
+
+        var waterContext = BallContext()
+        waterContext.hasWaterOrBugType = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen8to9, context: waterContext, species: magikarp),
+            "Net Ball: 3.5× catch rate (Water)"
+        )
+
+        var normalContext = BallContext()
+        normalContext.hasWaterOrBugType = false
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen8to9, context: normalContext, species: pikachu),
+            "Net Ball: no bonus (Electric — not Water or Bug)"
+        )
+    }
+
+    func testGen9NestBallBonusLabelReflectsTargetLevel() {
+        var lowLevel = BallContext()
+        lowLevel.targetLevel = 10
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .nest, ruleSet: .gen8to9, context: lowLevel, species: nil),
+            "Nest Ball: 3.1× catch rate (target level 10)"
+        )
+
+        var highLevel = BallContext()
+        highLevel.targetLevel = 35
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .nest, ruleSet: .gen8to9, context: highLevel, species: nil),
+            "Nest Ball: no bonus (target level 35 — need below 30)"
+        )
+    }
+
+    func testGen9LevelBallBonusLabelReflectsPlayerAndTargetLevels() {
+        var strong = BallContext()
+        strong.playerLevel = 50
+        strong.targetLevel = 10
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .level, ruleSet: .gen8to9, context: strong, species: nil),
+            "Level Ball: 8× catch rate (Lv. 50 vs Lv. 10)"
+        )
+
+        var weak = BallContext()
+        weak.playerLevel = 30
+        weak.targetLevel = 50
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .level, ruleSet: .gen8to9, context: weak, species: nil),
+            "Level Ball: no bonus (Lv. 30 vs Lv. 50 — not high enough)"
+        )
+    }
+
+    func testGen3to7BonusLabelsMatchCorrectMultipliers() {
+        // Lure Ball: 5× in Gen 3–7, 4× in Gen 8–9
+        var fishing = BallContext()
+        fishing.isFishing = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen3to4, context: fishing, species: nil),
+            "Lure Ball: 5× catch rate (fishing)"
+        )
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen8to9, context: fishing, species: nil),
+            "Lure Ball: 4× catch rate (fishing)"
+        )
+
+        // Net Ball: 3× in Gen 3–7, 3.5× in Gen 8–9
+        let magikarp = PokemonSpecies(id: 129, name: "Magikarp", generation: 1, baseHP: 20, catchRate: 255, type1: "water", type2: nil)
+        var waterCtx = BallContext()
+        waterCtx.hasWaterOrBugType = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen3to4, context: waterCtx, species: magikarp),
+            "Net Ball: 3× catch rate (Water)"
+        )
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen8to9, context: waterCtx, species: magikarp),
+            "Net Ball: 3.5× catch rate (Water)"
+        )
+
+        // Dusk Ball: 3.5× in Gen 3–7, 3× in Gen 8–9
+        var dark = BallContext()
+        dark.isDarkTerrain = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .dusk, ruleSet: .gen3to4, context: dark, species: nil),
+            "Dusk Ball: 3.5× catch rate (night or cave)"
+        )
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .dusk, ruleSet: .gen8to9, context: dark, species: nil),
+            "Dusk Ball: 3× catch rate (night or cave)"
+        )
+
+        // Repeat Ball: 3× in Gen 3–7, 3.5× in Gen 8–9
+        var caught = BallContext()
+        caught.isRepeatRegistered = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .repeatBall, ruleSet: .gen3to4, context: caught, species: nil),
+            "Repeat Ball: 3× catch rate (already caught)"
+        )
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .repeatBall, ruleSet: .gen8to9, context: caught, species: nil),
+            "Repeat Ball: 3.5× catch rate (already caught)"
+        )
+
+        // Gen 2 Lure Ball shows 3× when fishing (Gen 2 has its own label system)
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen2, context: fishing, species: nil),
+            "Lure Ball: 3× catch rate (fishing)"
+        )
+        // Gen 1 has no specialty ball labels
+        XCTAssertNil(SpecialtyBallMath.bonusLabel(ball: .dusk, ruleSet: .gen1, context: dark, species: nil))
     }
 }

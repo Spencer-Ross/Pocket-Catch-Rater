@@ -72,12 +72,13 @@ enum StatusCondition: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Gen 2 additive status bonus
+    /// Gen 2 additive status bonus.
+    /// Due to a game bug, only sleep and freeze actually apply — the poison/burn/paralysis
+    /// check always fails in G/S/C, so those conditions contribute 0.
     var gen2CaptureBonus: Int {
         switch self {
         case .sleep, .freeze: 10
-        case .poison, .burn, .paralysis: 5
-        case .none: 0
+        case .poison, .burn, .paralysis, .none: 0
         }
     }
 

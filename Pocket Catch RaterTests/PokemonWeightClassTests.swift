@@ -22,22 +22,25 @@ final class PokemonWeightClassTests: XCTestCase {
     }
 
     func testClassicWeightClasses() {
-        XCTAssertEqual(
-            PokemonWeightClass.classify(weightKg: 3.5, formulaFamily: .gen2),
-            .light
-        )
-        XCTAssertEqual(
-            PokemonWeightClass.classify(weightKg: 210, formulaFamily: .gen2),
-            .heavy
-        )
-        XCTAssertEqual(
-            PokemonWeightClass.classify(weightKg: 350, formulaFamily: .gen2),
-            .veryHeavy
-        )
-        XCTAssertEqual(
-            PokemonWeightClass.classify(weightKg: 460, formulaFamily: .gen2),
-            .ultraHeavy
-        )
+        // <102.4 kg → -20
+        XCTAssertEqual(PokemonWeightClass.classify(weightKg: 3.5, formulaFamily: .gen2), .light)
+        // 102.4–204.8 kg → ±0 (medium tier added per Gen 2 spec)
+        XCTAssertEqual(PokemonWeightClass.classify(weightKg: 150, formulaFamily: .gen2), .medium)
+        // 204.8–307.2 kg → +20
+        XCTAssertEqual(PokemonWeightClass.classify(weightKg: 210, formulaFamily: .gen2), .heavy)
+        // 307.2–409.6 kg → +30
+        XCTAssertEqual(PokemonWeightClass.classify(weightKg: 350, formulaFamily: .gen2), .veryHeavy)
+        // ≥409.6 kg → +40
+        XCTAssertEqual(PokemonWeightClass.classify(weightKg: 460, formulaFamily: .gen2), .ultraHeavy)
+    }
+
+    func testClassicMediumTierIsZeroBonus() {
+        // 102.4 kg boundary (exactly at the medium threshold) → +0
+        XCTAssertEqual(PokemonWeightClass.classify(weightKg: 102.4, formulaFamily: .gen2), .medium)
+        XCTAssertEqual(PokemonWeightClass.medium.heavyBallCatchRateBonus(formulaFamily: .gen2), 0)
+        // Just below medium → -20
+        XCTAssertEqual(PokemonWeightClass.classify(weightKg: 102.3, formulaFamily: .gen2), .light)
+        XCTAssertEqual(PokemonWeightClass.light.heavyBallCatchRateBonus(formulaFamily: .gen2), -20)
     }
 
     func testHeavyBallBonuses() {

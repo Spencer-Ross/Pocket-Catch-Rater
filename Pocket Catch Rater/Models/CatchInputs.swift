@@ -27,6 +27,11 @@ struct CatchInputs: Sendable {
     var loveBallOppositeGender: Bool = false
     var moonBallBonusActive: Bool = false
     var fastBallBonusActive: Bool = false
+    var quickBallFirstTurn: Bool = true
+
+    // Gen 2 apricorn ball conditions (sheet toggles)
+    var loveBallSameGender: Bool = false
+    var gen2FastBallActive: Bool = false
 
     var effectiveBall: CatchBall {
         if battleMode == .safari { return .safari }
@@ -75,6 +80,10 @@ struct CatchInputs: Sendable {
             moonBallBonusActive = MoonBallEligibility.isEligible(speciesID: species.id)
         case .fast:
             fastBallBonusActive = FastBallEligibility.isEligible(baseSpeed: species.baseSpeed)
+            // Gen 2: Fast Ball only gives 4× for Grimer (#88), Tangela (#114), Magnemite (#81)
+            gen2FastBallActive = Gen2FastBallEligibility.isEligible(speciesID: species.id)
+        case .net:
+            hasWaterOrBugType = species.hasWaterOrBugType
         default:
             break
         }
@@ -95,7 +104,10 @@ struct CatchInputs: Sendable {
             pokedexCaught: pokedexCaught,
             loveBallOppositeGender: loveBallOppositeGender,
             moonBallBonusActive: moonBallBonusActive,
-            fastBallBonusActive: fastBallBonusActive
+            fastBallBonusActive: fastBallBonusActive,
+            quickBallFirstTurnActive: quickBallFirstTurn,
+            loveBallSameGender: loveBallSameGender,
+            gen2FastBallActive: gen2FastBallActive
         )
     }
 }

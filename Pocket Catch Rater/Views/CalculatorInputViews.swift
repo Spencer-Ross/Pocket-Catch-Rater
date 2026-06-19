@@ -62,12 +62,12 @@ struct CompactStatusGrid: View {
 struct SelectedCatchBallHeader: View {
     let name: String
     let spriteURL: URL?
-    var conditionToggle: ConditionToggle?
+    var conditionControl: ConditionControl?
 
-    struct ConditionToggle {
-        let label: String
-        let isOn: Binding<Bool>
-        var isEnabled: Bool = true
+    enum ConditionControl {
+        case toggle(label: String, isOn: Binding<Bool>, isEnabled: Bool = true)
+        case turnPicker(turn: Binding<Int>, onChange: () -> Void)
+        case levelPicker(level: Binding<Int>, label: String, sheetTitle: String, onChange: () -> Void)
     }
 
     var body: some View {
@@ -80,12 +80,25 @@ struct SelectedCatchBallHeader: View {
 
             Spacer(minLength: 8)
 
-            if let conditionToggle {
-                Toggle(conditionToggle.label, isOn: conditionToggle.isOn)
+            switch conditionControl {
+            case .toggle(let label, let isOn, let isEnabled):
+                Toggle(label, isOn: isOn)
                     .font(.caption.weight(.medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                    .disabled(!conditionToggle.isEnabled)
+                    .disabled(!isEnabled)
+            case .turnPicker(let turn, let onChange):
+                TurnPickerButton(turn: turn, onChange: onChange)
+            case .levelPicker(let level, let label, let sheetTitle, let onChange):
+                LevelPickerButton(
+                    level: level,
+                    style: .ballHeader,
+                    label: label,
+                    sheetTitle: sheetTitle,
+                    onChange: onChange
+                )
+            case nil:
+                EmptyView()
             }
         }
         .padding(12)
@@ -213,19 +226,40 @@ struct BallConditionsSheet: View {
         ruleSet.representativeGeneration.rawValue
     }
 
+    private var usesPerBallHeaderConditions: Bool {
+        SpecialtyBallMath.isModernGen(ruleSet: ruleSet)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                if generationLevel >= 2 {
+                if generationLevel >= 2, !usesPerBallHeaderConditions {
                     Section("Level Ball") {
                         Stepper("Your Pokémon level: \(inputs.playerLevel)", value: Binding(
                             get: { inputs.playerLevel },
                             set: { inputs.playerLevel = min(100, max(1, $0)); onChange() }
                         ), in: 1...100)
                     }
+
+                    if inputs.catchBall == .lure {
+                        Section("Lure Ball") {
+                            Toggle("Fishing", isOn: binding(\.isFishing))
+                        }
+                    }
+
+                    if inputs.catchBall == .love {
+                        Section {
+                            Toggle("Same species, same gender", isOn: binding(\.loveBallSameGender))
+                        } header: {
+                            Text("Love Ball")
+                        } footer: {
+                            Text("In Gen II, the Love Ball bonus activates for same gender — not opposite. This is a game bug.")
+                                .font(.caption)
+                        }
+                    }
                 }
 
-                if generationLevel >= 3 {
+                if generationLevel >= 3, !usesPerBallHeaderConditions {
                     Section("Battle") {
                         Stepper("Battle turn: \(inputs.battleTurn)", value: Binding(
                             get: { inputs.battleTurn },
@@ -245,11 +279,6 @@ struct BallConditionsSheet: View {
                     }
                 }
 
-                if generationLevel >= 5 {
-                    Section("Environment") {
-                        Toggle("Thick grass / dark grass", isOn: binding(\.isThickGrass))
-                    }
-                }
             }
             .navigationTitle("Ball Conditions")
             .navigationBarTitleDisplayMode(.inline)
