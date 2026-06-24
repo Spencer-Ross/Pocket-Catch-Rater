@@ -20,23 +20,25 @@ nonisolated enum PokemonWeightClass: String, Sendable {
 
     static func classify(weightKg: Double, formulaFamily: CaptureFormulaFamily) -> PokemonWeightClass {
         switch formulaFamily {
-        case .gen8to9:
+        case .gen8to9, .gen6to7:
+            // Gen VII uses the same 100/200/300 kg thresholds as Gen VIII/IX.
             return classifyModern(weightKg: weightKg)
-        case .gen1, .gen2, .gen3to4, .gen5, .gen6to7:
+        case .gen1, .gen2, .gen3to4, .gen5:
             return classifyClassic(weightKg: weightKg)
         }
     }
 
     func heavyBallCatchRateBonus(formulaFamily: CaptureFormulaFamily) -> Int {
         switch formulaFamily {
-        case .gen8to9:
+        case .gen8to9, .gen6to7:
+            // Gen VII removed the +40 tier. Matches Gen VIII/IX: +30/+20/0/−20.
             switch self {
             case .light: -20
             case .medium: 0
             case .heavy: 20
             case .veryHeavy, .ultraHeavy: 30
             }
-        case .gen1, .gen2, .gen3to4, .gen5, .gen6to7:
+        case .gen1, .gen2, .gen3to4, .gen5:
             switch self {
             case .light: -20
             case .medium: 0   // ≥102.4 kg to <204.8 kg — no bonus
@@ -71,17 +73,71 @@ enum HeavyBallMath {
         return weightClass.heavyBallCatchRateBonus(formulaFamily: formulaFamily)
     }
 
+    /// Adjusts the species catch rate C before the capture formula.
+    ///
+    /// - For all generations: Heavy Ball adds/subtracts a fixed amount to C.
+    /// - For Gen 3–4 (HGSS): the other Apricorn balls also modify C directly rather than
+    ///   contributing a B multiplier. The modified C is capped at 255 (minimum 1 for Heavy Ball).
     static func adjustedSpeciesCatchRate(
         base catchRate: Int,
         ball: CatchBall,
         weightKg: Double?,
-        formulaFamily: CaptureFormulaFamily
+        formulaFamily: CaptureFormulaFamily,
+        context: BallContext = BallContext()
     ) -> Int {
+        if formulaFamily == .gen3to4 {
+            return gen3to4ApricornCatchRate(
+                base: catchRate, ball: ball, weightKg: weightKg, context: context
+            )
+        }
         guard ball == .heavy, let weightKg else { return catchRate }
         let bonus = PokemonWeightClass.classify(weightKg: weightKg, formulaFamily: formulaFamily)
             .heavyBallCatchRateBonus(formulaFamily: formulaFamily)
-        let adjusted = catchRate + bonus
-        return max(1, min(255, adjusted))
+        return max(1, min(255, catchRate + bonus))
+    }
+
+    // MARK: - Gen 3–4 (HGSS) Apricorn C-modifications
+
+    /// Applies the HGSS Apricorn-ball catch rate modification to C.
+    /// Source: https://www.dragonflycave.com/mechanics/gen-iii-iv-capturing/
+    ///
+    /// Level Ball thresholds use strict `>` (integer division), as described in the source.
+    private static func gen3to4ApricornCatchRate(
+        base catchRate: Int,
+        ball: CatchBall,
+        weightKg: Double?,
+        context: BallContext
+    ) -> Int {
+        switch ball {
+        case .heavy:
+            guard let weightKg else { return catchRate }
+            let bonus = PokemonWeightClass.classify(weightKg: weightKg, formulaFamily: .gen3to4)
+                .heavyBallCatchRateBonus(formulaFamily: .gen3to4)
+            return max(1, min(255, catchRate + bonus))
+        case .fast:
+            let multiplier = context.fastBallBonusActive ? 4 : 1
+            return min(255, catchRate * multiplier)
+        case .level:
+            let player = context.playerLevel
+            let target = context.targetLevel
+            let multiplier: Int
+            if player / 4 > target { multiplier = 8 }
+            else if player / 2 > target { multiplier = 4 }
+            else if player > target { multiplier = 2 }
+            else { multiplier = 1 }
+            return min(255, catchRate * multiplier)
+        case .love:
+            let multiplier = context.loveBallOppositeGender ? 8 : 1
+            return min(255, catchRate * multiplier)
+        case .lure:
+            let multiplier = context.isFishing ? 3 : 1
+            return min(255, catchRate * multiplier)
+        case .moon:
+            let multiplier = context.moonBallBonusActive ? 4 : 1
+            return min(255, catchRate * multiplier)
+        default:
+            return catchRate
+        }
     }
 
     static func info(weightKg: Double, ruleSet: CatchRuleSet) -> (weightClass: PokemonWeightClass, bonus: Int, label: String) {

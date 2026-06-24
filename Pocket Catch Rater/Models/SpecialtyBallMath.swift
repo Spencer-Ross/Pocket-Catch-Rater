@@ -1,9 +1,9 @@
 import Foundation
 
-/// Species whose evolution line includes a Moon Stone evolution (Gen 8–9 Moon Ball bonus).
-/// Add new national dex IDs here when future games introduce Moon Stone evolutions.
+/// Species whose evolution line includes a Moon Stone evolution.
 enum MoonBallEligibility {
-    static let eligibleSpeciesIDs: Set<Int> = [
+    /// HGSS (Gen III/IV): bonus applies to every member of a Moon Stone family.
+    static let hgssEligibleSpeciesIDs: Set<Int> = [
         29, 30, 31,   // Nidoran♀, Nidorina, Nidoqueen
         32, 33, 34,   // Nidoran♂, Nidorino, Nidoking
         173, 35, 36,  // Cleffa, Clefairy, Clefable
@@ -12,8 +12,24 @@ enum MoonBallEligibility {
         517, 518,     // Munna, Musharna
     ]
 
-    static func isEligible(speciesID: Int) -> Bool {
-        eligibleSpeciesIDs.contains(speciesID)
+    /// Gen VI+: bonus applies only to the Pokémon that directly evolve via Moon Stone.
+    static let modernEligibleSpeciesIDs: Set<Int> = [
+        30,  // Nidorina  → Nidoqueen
+        33,  // Nidorino  → Nidoking
+        35,  // Clefairy  → Clefable
+        39,  // Jigglypuff → Wigglytuff
+        300, // Skitty    → Delcatty
+        517, // Munna     → Musharna
+    ]
+
+    /// For Gen III/IV (HGSS) — entire family qualifies.
+    static func isEligibleHGSS(speciesID: Int) -> Bool {
+        hgssEligibleSpeciesIDs.contains(speciesID)
+    }
+
+    /// For Gen VI+ — only direct Moon Stone evolvers qualify.
+    static func isEligibleModern(speciesID: Int) -> Bool {
+        modernEligibleSpeciesIDs.contains(speciesID)
     }
 }
 
@@ -107,8 +123,9 @@ enum SpecialtyBallMath {
         species: PokemonSpecies?
     ) -> String? {
         let gen = ruleSet.representativeGeneration
+        let isGen3to4 = ruleSet.formulaFamily == .gen3to4
 
-        // Gen 2 has its own apricorn ball mechanics (different from Gen 8–9)
+        // Gen 2 has its own apricorn ball mechanics
         if ruleSet.formulaFamily == .gen2 {
             return gen2BonusLabel(ball: ball, context: context, species: species)
         }
@@ -123,13 +140,25 @@ enum SpecialtyBallMath {
             }
             return "Beast Ball: \(formatPenaltyMultiplier(multiplier)) catch rate (not an Ultra Beast)"
         case .love, .moon, .fast, .dream:
-            guard ruleSet.formulaFamily == .gen8to9 else { return nil }
+            // Gen 3–4 (HGSS): apricorn balls modify the species catch rate C.
+            // Gen 6+: B-multiplier (same values as Gen 8/9; Dream Ball only exists in Gen 8+).
+            if isGen3to4 {
+                return gen3to4ApricornBonusLabel(ball: ball, context: context, species: species)
+            }
+            guard ruleSet.formulaFamily == .gen6to7 || ruleSet.formulaFamily == .gen8to9 else { return nil }
             return gen8ApricornBonusLabel(ball: ball, context: context, species: species)
         case .lure:
             guard isModernGen(ruleSet: ruleSet) else { return nil }
+            if isGen3to4 {
+                // Lure Ball modifies C by 3× in HGSS when fishing.
+                guard context.isFishing else { return nil }
+                return "Lure Ball: 3× species catch rate (fishing)"
+            }
             let mult = ball.modernBallBonus(generation: gen, context: context)
             guard mult > 1 else { return nil }
-            return "Lure Ball: \(formatMultiplier(mult)) catch rate (fishing)"
+            // Gen 9: no fishing; condition is being in or above water.
+            let lureCondition = gen == .gen9 ? "near water" : "fishing"
+            return "Lure Ball: \(formatMultiplier(mult)) catch rate (\(lureCondition))"
         case .dive:
             guard isModernGen(ruleSet: ruleSet) else { return nil }
             let mult = ball.modernBallBonus(generation: gen, context: context)
@@ -147,7 +176,7 @@ enum SpecialtyBallMath {
             return "Dusk Ball: \(formatMultiplier(mult)) catch rate (night or cave)"
         case .timer:
             guard isModernGen(ruleSet: ruleSet) else { return nil }
-            let mult = timerBallMultiplier(turn: context.battleTurn)
+            let mult = timerBallMultiplier(turn: context.battleTurn, ruleSet: ruleSet)
             guard mult > 1 else { return nil }
             return "Timer Ball: \(formatMultiplier(mult)) catch rate (turn \(context.battleTurn))"
         case .quick:
@@ -160,19 +189,33 @@ enum SpecialtyBallMath {
             return netBallBonusLabel(generation: gen, context: context, species: species)
         case .nest:
             guard isModernGen(ruleSet: ruleSet) else { return nil }
-            return nestBallBonusLabel(context: context)
+            return nestBallBonusLabel(context: context, ruleSet: ruleSet)
         case .level:
             guard isModernGen(ruleSet: ruleSet) else { return nil }
+            if isGen3to4 {
+                return gen3to4LevelBallBonusLabel(context: context)
+            }
             return levelBallBonusLabel(context: context)
         default:
             return nil
         }
     }
 
+    /// Gen 8–9 Timer Ball multiplier (increment formula).
     static func timerBallMultiplier(turn: Int) -> Double {
         let turns = max(1, turn)
         let increment = 1229.0 / 4096.0
         return min(4, 1 + Double(turns - 1) * increment)
+    }
+
+    /// Generation-aware Timer Ball multiplier.
+    /// Gen 3–4: B = floor((turn + 10) / 10), max 4.
+    /// Gen 8–9: increment formula.
+    static func timerBallMultiplier(turn: Int, ruleSet: CatchRuleSet) -> Double {
+        if ruleSet.formulaFamily == .gen3to4 {
+            return Double(min(4, (turn + 10) / 10))
+        }
+        return timerBallMultiplier(turn: turn)
     }
 
     static func levelBallMultiplier(playerLevel: Int, targetLevel: Int) -> Double {
@@ -182,11 +225,21 @@ enum SpecialtyBallMath {
         return 1
     }
 
+    /// Gen 8–9 Nest Ball multiplier: (41 − level) / 10, minimum 1.
     static func nestBallMultiplier(targetLevel: Int) -> Double {
         if targetLevel < 30 {
             return max(1, Double(41 - targetLevel) / 10)
         }
         return 1
+    }
+
+    /// Generation-aware Nest Ball multiplier.
+    /// Gen 3–4: B = floor((40 − level) / 10), minimum 1.
+    static func nestBallMultiplier(targetLevel: Int, ruleSet: CatchRuleSet) -> Double {
+        if ruleSet.formulaFamily == .gen3to4 {
+            return Double(max(1, (40 - targetLevel) / 10))
+        }
+        return nestBallMultiplier(targetLevel: targetLevel)
     }
 
     private static func gen8ApricornBonusLabel(ball: CatchBall, context: BallContext, species: PokemonSpecies?) -> String? {
@@ -228,15 +281,58 @@ enum SpecialtyBallMath {
         return "Net Ball: no bonus (\(typeLabel) — not Water or Bug)"
     }
 
-    private static func nestBallBonusLabel(context: BallContext) -> String? {
+    private static func nestBallBonusLabel(context: BallContext, ruleSet: CatchRuleSet = .gen9) -> String? {
         let targetLevel = context.targetLevel
-        let multiplier = nestBallMultiplier(targetLevel: targetLevel)
+        let multiplier = nestBallMultiplier(targetLevel: targetLevel, ruleSet: ruleSet)
 
         if multiplier > 1 {
             return "Nest Ball: \(formatMultiplier(multiplier)) catch rate (target level \(targetLevel))"
         }
 
         return "Nest Ball: no bonus (target level \(targetLevel) — need below 30)"
+    }
+
+    // MARK: - Gen 3–4 (HGSS) apricorn ball labels
+
+    private static func gen3to4ApricornBonusLabel(ball: CatchBall, context: BallContext, species: PokemonSpecies?) -> String? {
+        switch ball {
+        case .love:
+            if context.loveBallOppositeGender {
+                return "Love Ball: 8× species catch rate (opposite gender)"
+            }
+            return "Love Ball: no bonus (need opposite gender)"
+        case .moon:
+            if context.moonBallBonusActive {
+                return "Moon Ball: 4× species catch rate (Moon Stone evolution)"
+            }
+            return "Moon Ball: no bonus (not a Moon Stone evolution)"
+        case .fast:
+            if context.fastBallBonusActive {
+                if let baseSpeed = species?.baseSpeed {
+                    return "Fast Ball: 4× species catch rate (base Speed \(baseSpeed))"
+                }
+                return "Fast Ball: 4× species catch rate (base Speed ≥ \(FastBallEligibility.minimumBaseSpeed))"
+            }
+            return "Fast Ball: no bonus (base Speed below \(FastBallEligibility.minimumBaseSpeed))"
+        default:
+            return nil
+        }
+    }
+
+    private static func gen3to4LevelBallBonusLabel(context: BallContext) -> String? {
+        let player = context.playerLevel
+        let target = context.targetLevel
+        // HGSS uses strict > (integer division), matching the game source.
+        if player / 4 > target {
+            return "Level Ball: 8× species catch rate (Lv. \(player) vs Lv. \(target))"
+        }
+        if player / 2 > target {
+            return "Level Ball: 4× species catch rate (Lv. \(player) vs Lv. \(target))"
+        }
+        if player > target {
+            return "Level Ball: 2× species catch rate (Lv. \(player) vs Lv. \(target))"
+        }
+        return "Level Ball: no bonus (Lv. \(player) vs Lv. \(target) — not higher level)"
     }
 
     private static func levelBallBonusLabel(context: BallContext) -> String? {

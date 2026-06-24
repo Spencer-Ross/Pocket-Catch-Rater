@@ -82,14 +82,8 @@ struct CatchCalculatorView: View {
                             )
                         }
 
-                        if selectedRuleSet.representativeGeneration.rawValue >= 5 {
-                            Toggle("Dark/thick grass", isOn: Binding(
-                                get: { inputs.isThickGrass },
-                                set: { inputs.isThickGrass = $0; recalculate() }
-                            ))
-                            .padding(12)
-                            .background(Color(.secondarySystemGroupedBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        if showsConditionsRow {
+                            conditionsChips
                         }
 
                         inputSection(title: "Ball") {
@@ -374,7 +368,7 @@ struct CatchCalculatorView: View {
 
         if inputs.catchBall == .fast,
            inputs.species?.baseSpeed == nil,
-           selectedRuleSet.formulaFamily == .gen8to9 {
+           selectedRuleSet.formulaFamily == .gen6to7 || selectedRuleSet.formulaFamily == .gen8to9 {
             return "Fast Ball bonus needs species speed (sync details)"
         }
 
@@ -433,6 +427,237 @@ struct CatchCalculatorView: View {
         }
     }
 
+    // Gen 5–7 only: Gen 8/9 docs confirm G is never triggered in those games.
+    private var showsGrassToggle: Bool {
+        let gen = selectedRuleSet.representativeGeneration.rawValue
+        return gen >= 5 && gen <= 7
+    }
+
+    private var showsPokedexPicker: Bool {
+        selectedRuleSet.representativeGeneration.rawValue >= 5 && inputs.isThickGrass
+    }
+
+    // O-Power (Gen 6) and Roto Catch (Gen 7 USUM) both factor into the capture formula.
+    // Sun/Moon has no catch power, but the picker's "None" default handles that correctly.
+    private var showsOPowerPicker: Bool {
+        selectedRuleSet.formulaFamily == .gen6to7
+    }
+
+    // Gen 9: Capture Power from sandwiches (D modifier).
+    private var showsCapturePowerPicker: Bool {
+        selectedRuleSet == .gen9
+    }
+
+    // Gen 9: catching the Pokémon off-guard doubles D.
+    private var showsOffGuardToggle: Bool {
+        selectedRuleSet == .gen9
+    }
+
+    // Gen 9: badge count affects the BP penalty multiplier.
+    private var showsBadgePicker: Bool {
+        selectedRuleSet == .gen9
+    }
+
+    private var showsConditionsRow: Bool {
+        showsGrassToggle || showsOPowerPicker || showsCapturePowerPicker || showsOffGuardToggle || showsBadgePicker
+    }
+
+    private var badgeChipLabel: String {
+        "\(inputs.badgeCount) badge\(inputs.badgeCount == 1 ? "" : "s")"
+    }
+
+    private var oPowerChipLabel: String {
+        if inputs.oPowerBonus == 1 {
+            return selectedRuleSet == .gen9 ? "Capture Power" : "O-Power"
+        }
+        if selectedRuleSet == .gen9 {
+            return Self.capturePowerOptions.first(where: { $0.value == inputs.oPowerBonus })?.label ?? "Capture Power"
+        }
+        return Self.oPowerOptions.first(where: { $0.value == inputs.oPowerBonus })?.label ?? "O-Power"
+    }
+
+    private var dexChipLabel: String {
+        Self.dexBuckets.first(where: { $0.value == inputs.pokedexCaught })?.label ?? "Pokédex"
+    }
+
+    @ViewBuilder
+    private var conditionsChips: some View {
+        HStack(spacing: 8) {
+            if showsGrassToggle {
+                Button {
+                    inputs.isThickGrass.toggle()
+                    recalculate()
+                } label: {
+                    conditionChip(
+                        symbol: inputs.isThickGrass ? "leaf.fill" : "leaf",
+                        label: "Dark grass",
+                        isActive: inputs.isThickGrass
+                    )
+                }
+                .buttonStyle(.plain)
+                .animation(.easeInOut(duration: 0.15), value: inputs.isThickGrass)
+            }
+
+            if showsOPowerPicker {
+                Menu {
+                    ForEach(Self.oPowerOptions, id: \.value) { option in
+                        Button {
+                            inputs.oPowerBonus = option.value
+                            recalculate()
+                        } label: {
+                            if inputs.oPowerBonus == option.value {
+                                Label(option.label, systemImage: "checkmark")
+                            } else {
+                                Text(option.label)
+                            }
+                        }
+                    }
+                } label: {
+                    conditionChip(
+                        symbol: "bolt.fill",
+                        label: oPowerChipLabel,
+                        isActive: inputs.oPowerBonus > 1
+                    )
+                }
+                .animation(.easeInOut(duration: 0.15), value: inputs.oPowerBonus)
+            }
+
+            if showsCapturePowerPicker {
+                Menu {
+                    ForEach(Self.capturePowerOptions, id: \.value) { option in
+                        Button {
+                            inputs.oPowerBonus = option.value
+                            recalculate()
+                        } label: {
+                            if inputs.oPowerBonus == option.value {
+                                Label(option.label, systemImage: "checkmark")
+                            } else {
+                                Text(option.label)
+                            }
+                        }
+                    }
+                } label: {
+                    conditionChip(
+                        symbol: "fork.knife",
+                        label: oPowerChipLabel,
+                        isActive: inputs.oPowerBonus > 1
+                    )
+                }
+                .animation(.easeInOut(duration: 0.15), value: inputs.oPowerBonus)
+            }
+
+            if showsBadgePicker {
+                let hasPenalty = inputs.badgeCount < 8
+                Menu {
+                    ForEach(0...8, id: \.self) { count in
+                        Button {
+                            inputs.badgeCount = count
+                            recalculate()
+                        } label: {
+                            if inputs.badgeCount == count {
+                                Label("\(count) badge\(count == 1 ? "" : "s")", systemImage: "checkmark")
+                            } else {
+                                Text("\(count) badge\(count == 1 ? "" : "s")")
+                            }
+                        }
+                    }
+                } label: {
+                    conditionChip(
+                        symbol: "shield",
+                        label: badgeChipLabel,
+                        isActive: hasPenalty
+                    )
+                }
+                .animation(.easeInOut(duration: 0.15), value: inputs.badgeCount)
+            }
+
+            if showsOffGuardToggle {
+                Button {
+                    inputs.isOffGuard.toggle()
+                    recalculate()
+                } label: {
+                    HStack(spacing: 5) {
+                        Text("😱")
+                            .font(.caption)
+                        Text("Off-guard")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(inputs.isOffGuard ? .white : .secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(inputs.isOffGuard ? Color.accentColor : Color(.secondarySystemGroupedBackground))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .animation(.easeInOut(duration: 0.15), value: inputs.isOffGuard)
+            }
+
+            if showsPokedexPicker {
+                Menu {
+                    ForEach(Self.dexBuckets, id: \.value) { bucket in
+                        Button {
+                            inputs.pokedexCaught = bucket.value
+                            recalculate()
+                        } label: {
+                            if inputs.pokedexCaught == bucket.value {
+                                Label(bucket.label, systemImage: "checkmark")
+                            } else {
+                                Text(bucket.label)
+                            }
+                        }
+                    }
+                } label: {
+                    conditionChip(
+                        symbol: "book.closed.fill",
+                        label: dexChipLabel,
+                        isActive: true
+                    )
+                }
+            }
+
+            Spacer()
+        }
+    }
+
+    private func conditionChip(symbol: String, label: String, isActive: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.semibold))
+            Text(label)
+                .font(.caption.weight(.medium))
+        }
+        .foregroundStyle(isActive ? .white : .secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(isActive ? Color.accentColor : Color(.secondarySystemGroupedBackground))
+        .clipShape(Capsule())
+    }
+
+    private static let oPowerOptions: [(label: String, value: Double)] = [
+        ("None",        1.0),
+        ("Lv.1 (1.5×)", 1.5),
+        ("Lv.2 (2.0×)", 2.0),
+        ("Lv.3+ (2.5×)", 2.5),
+    ]
+
+    // Gen 9 sandwich Capture Power levels (D modifier).
+    private static let capturePowerOptions: [(label: String, value: Double)] = [
+        ("None",         1.0),
+        ("Lv.1 (1.1×)",  1.1),
+        ("Lv.2 (1.25×)", 1.25),
+        ("Lv.3 (2.0×)",  2.0),
+    ]
+
+    private static let dexBuckets: [(label: String, value: Int)] = [
+        ("0–30",    10),
+        ("31–150",  100),
+        ("151–300", 200),
+        ("301–450", 350),
+        ("451–600", 500),
+        ("601+",    650),
+    ]
+
+
     @ViewBuilder
     private func inputSection(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -456,6 +681,9 @@ struct CatchCalculatorView: View {
         inputs.battleMode = .wild
         inputs.rocksThrown = 0
         inputs.baitUsed = 0
+        inputs.oPowerBonus = 1
+        inputs.isOffGuard = false
+        inputs.badgeCount = 8
 
         if let species = inputs.species,
            (try? dataStore.isSpeciesAvailable(species, in: dataGeneration)) == false {

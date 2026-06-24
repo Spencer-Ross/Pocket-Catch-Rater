@@ -87,7 +87,8 @@ struct ModernCatchCalculator: CatchCalculator {
                 base: catchRate,
                 ball: ball,
                 weightKg: weightKg,
-                formulaFamily: formulaFamily
+                formulaFamily: formulaFamily,
+                context: context
             )
             let ballBonus = ball.modernBallBonus(generation: inputs.generation, context: context)
             let x = CaptureMath.gen3ModifiedRate(
@@ -95,7 +96,8 @@ struct ModernCatchCalculator: CatchCalculator {
                 currentHP: currentHP,
                 catchRate: effectiveCatchRate,
                 ballBonus: ballBonus,
-                status: status
+                status: status,
+                formulaFamily: formulaFamily
             )
             return CatchResult(
                 probability: CaptureMath.gen3Probability(x: x),
@@ -141,7 +143,7 @@ struct ModernCatchCalculator: CatchCalculator {
                 ballBonus: ballBonus
             )
 
-        case .gen6to7, .gen8to9:
+        case .gen6to7:
             let effectiveCatchRate = HeavyBallMath.adjustedSpeciesCatchRate(
                 base: catchRate,
                 ball: ball,
@@ -153,9 +155,6 @@ struct ModernCatchCalculator: CatchCalculator {
                 isThickGrass: inputs.isThickGrass,
                 pokedexCaught: inputs.pokedexCaught
             )
-            let lowLevel = formulaFamily == .gen8to9
-                ? CaptureMath.lowLevelModifier(targetLevel: inputs.level)
-                : 1
             let x = CaptureMath.gen6ModifiedRate(
                 maxHP: maxHP,
                 currentHP: currentHP,
@@ -163,12 +162,59 @@ struct ModernCatchCalculator: CatchCalculator {
                 ballBonus: ballBonus,
                 status: status,
                 grassModifier: grass,
-                lowLevelModifier: lowLevel
+                oPowerBonus: inputs.oPowerBonus
             )
             return CatchResult(
-                probability: CaptureMath.gen3Probability(x: x),
+                probability: CaptureMath.gen6Probability(x: x),
                 hpFactor: x,
-                wobbleCount: CaptureMath.estimatedGen3Wobbles(x: x),
+                wobbleCount: CaptureMath.estimatedGen6Wobbles(x: x),
+                isAtHPCap: x >= 255,
+                maxHP: maxHP,
+                currentHP: currentHP,
+                speciesCatchRate: catchRate,
+                effectiveCatchRate: x,
+                ballBonus: ballBonus
+            )
+
+        case .gen8to9:
+            let isGen9 = inputs.generation == .gen9
+            let effectiveCatchRate = HeavyBallMath.adjustedSpeciesCatchRate(
+                base: catchRate,
+                ball: ball,
+                weightKg: weightKg,
+                formulaFamily: formulaFamily
+            )
+            let ballBonus = ball.modernBallBonus(generation: inputs.generation, context: context)
+            let grass = CaptureMath.grassModifier(
+                isThickGrass: inputs.isThickGrass,
+                pokedexCaught: inputs.pokedexCaught
+            )
+            // Gen 9: (36 − 2×level)/10 for level ≤ 13. Gen 8: (30 − level)/10 for level < 21.
+            let lowLevel = isGen9
+                ? CaptureMath.gen9LowLevelModifier(targetLevel: inputs.level)
+                : CaptureMath.lowLevelModifier(targetLevel: inputs.level)
+            // Gen 9 BP: 0.8 per missing badge. Folds into ballBonus — same position in formula.
+            let bp = isGen9
+                ? CaptureMath.gen9BadgePenalty(targetLevel: inputs.level, badgeCount: inputs.badgeCount)
+                : 1.0
+            // Gen 9 D modifier: Capture Power × off-guard doubling. Gen 8: 1.
+            let difficultyMod: Double = isGen9
+                ? inputs.oPowerBonus * (inputs.isOffGuard ? 2.0 : 1.0)
+                : 1.0
+            let x = CaptureMath.gen6ModifiedRate(
+                maxHP: maxHP,
+                currentHP: currentHP,
+                catchRate: effectiveCatchRate,
+                ballBonus: ballBonus * bp,
+                status: status,
+                grassModifier: grass,
+                lowLevelModifier: lowLevel,
+                oPowerBonus: difficultyMod
+            )
+            return CatchResult(
+                probability: CaptureMath.gen6Probability(x: x),
+                hpFactor: x,
+                wobbleCount: CaptureMath.estimatedGen6Wobbles(x: x),
                 isAtHPCap: x >= 255,
                 maxHP: maxHP,
                 currentHP: currentHP,

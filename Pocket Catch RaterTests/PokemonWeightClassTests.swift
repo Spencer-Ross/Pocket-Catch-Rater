@@ -74,7 +74,7 @@ final class PokemonWeightClassTests: XCTestCase {
     }
 
     func testHeavyBallLabelIncludesWeightClass() {
-        let info = HeavyBallMath.info(weightKg: 210, ruleSet: .gen8to9)
+        let info = HeavyBallMath.info(weightKg: 210, ruleSet: .gen9)
         XCTAssertEqual(info.bonus, 20)
         XCTAssertTrue(info.label.contains("Heavy Ball: +20"))
         XCTAssertTrue(info.label.contains("210 kg"))
