@@ -71,4 +71,16 @@ final class ModernCatchCalculatorTests: XCTestCase {
 
         XCTAssertGreaterThan(quick.probability, poke.probability)
     }
+
+    func testGen5ProbabilityAtX255IsGuaranteed() {
+        XCTAssertEqual(CaptureMath.gen5Probability(x: 255), 1.0)
+    }
+
+    func testGen5ProbabilityFormula() {
+        // P = (Y/65536)^3 where Y = floor(65536 / (255/X)^0.25)
+        let x = 100
+        let y = floor(65536.0 / pow(255.0 / Double(x), 0.25))
+        let expected = pow(y / 65536.0, 3)
+        XCTAssertEqual(CaptureMath.gen5Probability(x: x), expected, accuracy: 0.0001)
+    }
 }

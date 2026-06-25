@@ -14,6 +14,18 @@ struct CatchInputs: Sendable {
     var rocksThrown: Int = 0
     var baitUsed: Int = 0
 
+    // Gen 6 O-Power / Gen 7 Roto Catch / Gen 9 Capture Power multiplier.
+    // Gen 6/7: 1.5×, 2.0×, or 2.5×. Gen 9: 1.1×, 1.25×, or 2.0×.
+    // Default 1 = no power active (lowest/safest value).
+    var oPowerBonus: Double = 1
+
+    // Gen 9 only: catching the Pokémon off-guard (backstrike / unaware) doubles D.
+    var isOffGuard: Bool = false
+
+    // Gen 9 only: number of gym badges earned (0–8). Affects the BP badge-penalty multiplier.
+    // Default 8 = no penalty (most players using a calculator are mid-to-late game).
+    var badgeCount: Int = 8
+
     // Optional ball-condition toggles (Gen 3+ specialty balls)
     var isFishing: Bool = false
     var isWaterTerrain: Bool = false
@@ -21,7 +33,7 @@ struct CatchInputs: Sendable {
     var isRepeatRegistered: Bool = true
     var hasWaterOrBugType: Bool = false
     var isThickGrass: Bool = false
-    var pokedexCaught: Int = 600
+    var pokedexCaught: Int = 650
 
     // Gen 8–9 apricorn ball conditions (header toggles)
     var loveBallOppositeGender: Bool = false
@@ -77,7 +89,13 @@ struct CatchInputs: Sendable {
 
         switch catchBall {
         case .moon:
-            moonBallBonusActive = MoonBallEligibility.isEligible(speciesID: species.id)
+            // HGSS (gen3to4): entire evolution family qualifies.
+            // Gen VI+: only the Pokémon that directly evolves via Moon Stone.
+            if generation.formulaFamily == .gen3to4 {
+                moonBallBonusActive = MoonBallEligibility.isEligibleHGSS(speciesID: species.id)
+            } else {
+                moonBallBonusActive = MoonBallEligibility.isEligibleModern(speciesID: species.id)
+            }
         case .fast:
             fastBallBonusActive = FastBallEligibility.isEligible(baseSpeed: species.baseSpeed)
             // Gen 2: Fast Ball only gives 4× for Grimer (#88), Tangela (#114), Magnemite (#81)

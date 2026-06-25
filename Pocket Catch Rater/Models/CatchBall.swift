@@ -248,23 +248,30 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
     // MARK: - Gen 3+ ball bonus multiplier B
 
     func modernBallBonus(generation: PokemonGeneration, context: BallContext) -> Double {
+        let isGen3to4 = generation.formulaFamily == .gen3to4
         switch self {
         case .master:
             return 1
         case .poke, .premier, .luxury, .heal, .friend, .heavy:
             return 1
+        // Gen 3–4: apricorn balls modify C (handled in HeavyBallMath), so B = 1 here.
+        // Gen 8–9: these balls return a B-multiplier.
+        // Gen 5–7: no bonus (apricorn balls existed only in HGSS and were C-modifiers).
         case .love:
-            if generation.rawValue >= 8, context.loveBallOppositeGender {
+            if isGen3to4 { return 1 }
+            if generation.rawValue >= 6, context.loveBallOppositeGender {
                 return SpecialtyBallMath.gen8LoveBallMultiplier
             }
             return 1
         case .moon:
-            if generation.rawValue >= 8, context.moonBallBonusActive {
+            if isGen3to4 { return 1 }
+            if generation.rawValue >= 6, context.moonBallBonusActive {
                 return SpecialtyBallMath.gen8MoonBallMultiplier
             }
             return 1
         case .fast:
-            if generation.rawValue >= 8, context.fastBallBonusActive {
+            if isGen3to4 { return 1 }
+            if generation.rawValue >= 6, context.fastBallBonusActive {
                 return SpecialtyBallMath.gen8FastBallMultiplier
             }
             return 1
@@ -275,8 +282,17 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
         case .safari:
             return generation.rawValue >= 8 ? 1.5 : 1
         case .lure:
+            // Gen 3–4 (HGSS): Lure Ball modifies C by 3× — B = 1 here.
+            if isGen3to4 { return 1 }
+            // Gen 9: no fishing; Lure Ball gives 4× when in or above water (same condition as Dive Ball).
+            if generation == .gen9 {
+                return context.isWaterTerrain ? 4 : 1
+            }
+            // Gen 6/7: 5× when fishing. Gen 8: 4× when fishing.
             return context.isFishing ? (generation.rawValue >= 8 ? 4 : 5) : 1
         case .level:
+            // Gen 3–4 (HGSS): Level Ball modifies C — B = 1 here.
+            if isGen3to4 { return 1 }
             let player = context.playerLevel
             let target = context.targetLevel
             if player / 4 >= target { return 8 }
@@ -284,24 +300,42 @@ enum CatchBall: String, CaseIterable, Identifiable, Sendable {
             if player > target { return 2 }
             return 1
         case .nest:
+            // Gen 3–4: B = floor((40 − level) / 10), minimum 1.
+            // Gen 8–9: B = (41 − level) / 10 (non-integer allowed), minimum 1.
+            if isGen3to4 {
+                let bonus = (40 - context.targetLevel) / 10
+                return Double(max(1, bonus))
+            }
             if context.targetLevel < 30 {
                 return max(1, Double(41 - context.targetLevel) / 10)
             }
             return 1
         case .repeatBall:
-            return context.isRepeatRegistered ? (generation.rawValue >= 8 ? 3.5 : 3) : 1
+            // Gen 6: 3×. Gen 7+: 3.5×.
+            return context.isRepeatRegistered ? (generation.rawValue >= 7 ? 3.5 : 3) : 1
         case .timer:
+            // Gen 3–4: B = floor((turns + 10) / 10), maximum 4.
+            // Gen 8–9: increment formula.
+            if isGen3to4 {
+                return Double(min(4, (context.battleTurn + 10) / 10))
+            }
             let turns = max(1, context.battleTurn)
             let increment = 1229.0 / 4096.0
             return min(4, 1 + Double(turns - 1) * increment)
         case .quick:
+            // Gen 3–4: B = 4 on first turn. Gen 5+: B = 5.
+            if isGen3to4 {
+                return context.quickBallFirstTurnActive ? 4 : 1
+            }
             return context.quickBallFirstTurnActive ? 5 : 1
         case .dive:
-            return context.isWaterTerrain ? (generation.rawValue >= 8 ? 3.5 : 3.5) : 1
+            return context.isWaterTerrain ? 3.5 : 1
         case .net:
-            return context.hasWaterOrBugType ? (generation.rawValue >= 8 ? 3.5 : 3) : 1
+            // Gen 6: 3×. Gen 7+: 3.5×.
+            return context.hasWaterOrBugType ? (generation.rawValue >= 7 ? 3.5 : 3) : 1
         case .dusk:
-            return context.isDarkTerrain ? (generation.rawValue >= 8 ? 3 : 3.5) : 1
+            // Gen 6: 3.5×. Gen 7+: 3×.
+            return context.isDarkTerrain ? (generation.rawValue >= 7 ? 3 : 3.5) : 1
         case .dream:
             if generation.rawValue >= 8, context.status == .sleep {
                 return SpecialtyBallMath.gen8DreamBallMultiplier
@@ -325,7 +359,7 @@ struct BallContext: Sendable {
     var isRepeatRegistered: Bool = true
     var hasWaterOrBugType: Bool = false
     var isUltraBeast: Bool = false
-    var pokedexCaught: Int = 600
+    var pokedexCaught: Int = 650
     // Gen 8–9 apricorn conditions
     var loveBallOppositeGender: Bool = false
     var moonBallBonusActive: Bool = false

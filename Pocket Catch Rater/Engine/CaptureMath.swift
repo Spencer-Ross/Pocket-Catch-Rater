@@ -14,9 +14,36 @@ enum CaptureMath {
         }
     }
 
+    /// Gen 8 low-level modifier: (30 − level) / 10 for level < 21; 1 otherwise.
     static func lowLevelModifier(targetLevel: Int) -> Double {
         guard targetLevel < 21 else { return 1 }
         return Double(30 - targetLevel) / 10.0
+    }
+
+    /// Gen 9 low-level modifier: (36 − 2×level) / 10 for level ≤ 13; 1 otherwise.
+    /// Level 13 → 1.0; level 1 → 3.4.
+    static func gen9LowLevelModifier(targetLevel: Int) -> Double {
+        guard targetLevel <= 13 else { return 1 }
+        return Double(36 - 2 * targetLevel) / 10.0
+    }
+
+    /// Gen 9 badge penalty (BP): 0.8 per missing badge needed to control the target's level.
+    /// Returns 1 when the player has enough badges (no penalty).
+    static func gen9BadgePenalty(targetLevel: Int, badgeCount: Int) -> Double {
+        let badgesNeeded: Int
+        switch targetLevel {
+        case ...25:  badgesNeeded = 0
+        case 26...30: badgesNeeded = 1
+        case 31...35: badgesNeeded = 2
+        case 36...40: badgesNeeded = 3
+        case 41...45: badgesNeeded = 4
+        case 46...50: badgesNeeded = 5
+        case 51...55: badgesNeeded = 6
+        case 56...60: badgesNeeded = 7
+        default:      badgesNeeded = 8
+        }
+        let missing = max(0, badgesNeeded - badgeCount)
+        return missing > 0 ? pow(0.8, Double(missing)) : 1
     }
 
     // MARK: - Gen 2
@@ -59,27 +86,31 @@ enum CaptureMath {
         catchRate: Int,
         ballBonus: Double,
         status: StatusCondition,
-        grassModifier: Double = 1
+        grassModifier: Double = 1,
+        formulaFamily: CaptureFormulaFamily = .gen8to9
     ) -> Int {
         let hpTerm = Double(3 * maxHP - 2 * currentHP)
-        let value = hpTerm * Double(catchRate) * ballBonus * status.modernMultiplier * grassModifier
+        let statusMult = status.modernMultiplier(for: formulaFamily)
+        let value = hpTerm * Double(catchRate) * ballBonus * statusMult * grassModifier
         let scaled = value / Double(3 * maxHP)
         return max(Int(scaled.rounded(.down)), 1)
     }
 
+    /// Gen 3–4 shake probability.
+    /// Y = 1048560 / sqrt(sqrt(16711680 / X)) (actual game formula with integer arithmetic).
+    /// Capture succeeds when all four random numbers [0, 65535] are strictly less than Y.
     static func gen3Probability(x: Int) -> Double {
         if x >= 255 { return 1 }
         let rate = max(x, 1)
-        let y = floor(65536.0 / sqrt(255.0 / Double(rate)))
-        let shakeSuccess = (y + 1.0) / 65536.0
-        return pow(shakeSuccess, 4)
+        let y = floor(1048560.0 / sqrt(sqrt(16711680.0 / Double(rate))))
+        return pow(y / 65536.0, 4)
     }
 
     static func estimatedGen3Wobbles(x: Int) -> Int {
         if x >= 255 { return 0 }
         let rate = max(x, 1)
-        let y = floor(65536.0 / sqrt(255.0 / Double(rate)))
-        let p = (y + 1.0) / 65536.0
+        let y = floor(1048560.0 / sqrt(sqrt(16711680.0 / Double(rate))))
+        let p = y / 65536.0
         if p > 0.75 { return 3 }
         if p > 0.5 { return 2 }
         if p > 0.25 { return 1 }
@@ -102,25 +133,51 @@ enum CaptureMath {
         return max(Int(scaled.rounded(.down)), 1)
     }
 
+    /// Gen V capture probability.
+    /// Y = floor(65536 / sqrt(sqrt(255 / X))).
+    /// Capture succeeds when all three random numbers [0, 65535] are strictly less than Y.
     static func gen5Probability(x: Int) -> Double {
         if x >= 255 { return 1 }
         let rate = max(x, 1)
         let y = floor(65536.0 / pow(255.0 / Double(rate), 0.25))
-        let shakeSuccess = (y + 1.0) / 65536.0
-        return pow(shakeSuccess, 3)
+        return pow(y / 65536.0, 3)
     }
 
+    /// Estimated wobble count for a Gen V capture attempt (0, 1, or 3 — Gen V has no 2-wobble case).
     static func estimatedGen5Wobbles(x: Int) -> Int {
         if x >= 255 { return 0 }
         let rate = max(x, 1)
         let y = floor(65536.0 / pow(255.0 / Double(rate), 0.25))
-        let p = (y + 1.0) / 65536.0
+        let p = y / 65536.0
         if p > 0.66 { return 3 }
         if p > 0.33 { return 1 }
         return 0
     }
 
-    // MARK: - Gen 6-9 (Gen 6/7 use gen3 shake math; Gen 8/9 add low-level modifier)
+    // MARK: - Gen 6-7
+
+    /// Gen VI/VII capture probability.
+    /// Y = floor(65536 / (255 / X)^(3/16)).
+    /// Capture succeeds when all four random numbers [0, 65535] are strictly less than Y.
+    /// Note: the final capture chance (Y/65536)^4 = (X/255)^(3/4) — identical to Gen V —
+    /// but the higher per-shake Y means more visible wobbles before a break-out.
+    static func gen6Probability(x: Int) -> Double {
+        if x >= 255 { return 1 }
+        let rate = max(x, 1)
+        let y = floor(65536.0 / pow(255.0 / Double(rate), 3.0 / 16.0))
+        return pow(y / 65536.0, 4)
+    }
+
+    static func estimatedGen6Wobbles(x: Int) -> Int {
+        if x >= 255 { return 0 }
+        let rate = max(x, 1)
+        let y = floor(65536.0 / pow(255.0 / Double(rate), 3.0 / 16.0))
+        let p = y / 65536.0
+        if p > 0.75 { return 3 }
+        if p > 0.5  { return 2 }
+        if p > 0.25 { return 1 }
+        return 0
+    }
 
     static func gen6ModifiedRate(
         maxHP: Int,
@@ -129,10 +186,12 @@ enum CaptureMath {
         ballBonus: Double,
         status: StatusCondition,
         grassModifier: Double,
-        lowLevelModifier: Double = 1
+        lowLevelModifier: Double = 1,
+        oPowerBonus: Double = 1
     ) -> Int {
         let hpTerm = Double(3 * maxHP - 2 * currentHP) * grassModifier
-        let value = hpTerm * Double(catchRate) * ballBonus * status.modernMultiplier * lowLevelModifier
+        let value = hpTerm * Double(catchRate) * ballBonus * status.modernMultiplier
+            * lowLevelModifier * oPowerBonus
         let scaled = value / Double(3 * maxHP)
         return max(Int(scaled.rounded(.down)), 1)
     }

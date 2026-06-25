@@ -82,12 +82,19 @@ enum StatusCondition: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Gen 3+ status multiplier S
-    var modernMultiplier: Double {
+    /// Gen 3+ status multiplier S.
+    /// Gen III/IV: sleep/freeze = 2; Gen V+: sleep/freeze = 2.5.
+    func modernMultiplier(for formulaFamily: CaptureFormulaFamily) -> Double {
         switch self {
-        case .sleep, .freeze: 2.5
-        case .poison, .burn, .paralysis: 1.5
-        case .none: 1
+        case .sleep, .freeze:
+            return formulaFamily == .gen3to4 ? 2.0 : 2.5
+        case .poison, .burn, .paralysis:
+            return 1.5
+        case .none:
+            return 1.0
         }
     }
+
+    /// Convenience accessor for gen 8–9 (backwards-compatible default).
+    var modernMultiplier: Double { modernMultiplier(for: .gen8to9) }
 }

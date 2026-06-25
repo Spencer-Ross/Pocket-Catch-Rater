@@ -3,9 +3,19 @@ import XCTest
 
 final class SpecialtyBallTests: XCTestCase {
     func testMoonBallEligibilityCoversMoonStoneFamilies() {
-        XCTAssertTrue(MoonBallEligibility.isEligible(speciesID: 35))  // Clefairy
-        XCTAssertTrue(MoonBallEligibility.isEligible(speciesID: 39))  // Jigglypuff
-        XCTAssertFalse(MoonBallEligibility.isEligible(speciesID: 25)) // Pikachu
+        // Direct evolvers qualify in all gens
+        XCTAssertTrue(MoonBallEligibility.isEligibleModern(speciesID: 35))  // Clefairy
+        XCTAssertTrue(MoonBallEligibility.isEligibleModern(speciesID: 39))  // Jigglypuff
+        XCTAssertFalse(MoonBallEligibility.isEligibleModern(speciesID: 25)) // Pikachu
+
+        // HGSS (Gen 3/4): whole evolution family qualifies
+        XCTAssertTrue(MoonBallEligibility.isEligibleHGSS(speciesID: 36))   // Clefable
+        XCTAssertTrue(MoonBallEligibility.isEligibleHGSS(speciesID: 40))   // Wigglytuff
+        XCTAssertFalse(MoonBallEligibility.isEligibleHGSS(speciesID: 25))  // Pikachu
+
+        // Non-evolvers do NOT qualify in modern gens
+        XCTAssertFalse(MoonBallEligibility.isEligibleModern(speciesID: 36)) // Clefable (fully evolved)
+        XCTAssertFalse(MoonBallEligibility.isEligibleModern(speciesID: 40)) // Wigglytuff (fully evolved)
     }
 
     func testFastBallEligibilityUsesBaseSpeed100() {
@@ -73,7 +83,7 @@ final class SpecialtyBallTests: XCTestCase {
 
         let label = SpecialtyBallMath.bonusLabel(
             ball: .dream,
-            ruleSet: .gen8to9,
+            ruleSet: .gen9,
             context: context,
             species: nil
         )
@@ -130,7 +140,7 @@ final class SpecialtyBallTests: XCTestCase {
 
         let bonusLabel = SpecialtyBallMath.bonusLabel(
             ball: .beast,
-            ruleSet: .gen8to9,
+            ruleSet: .gen9,
             context: BallContext(),
             species: nihilego
         )
@@ -183,38 +193,38 @@ final class SpecialtyBallTests: XCTestCase {
         XCTAssertEqual(SpecialtyBallMath.toggleLabel(for: .dusk), "Night/Cave")
         XCTAssertEqual(SpecialtyBallMath.toggleLabel(for: .quick), "First Turn")
         // Turn picker shown for all Gen 3+ (not Gen 1 or Gen 2)
-        XCTAssertTrue(SpecialtyBallMath.showsTurnPicker(for: .timer, ruleSet: .gen8to9))
+        XCTAssertTrue(SpecialtyBallMath.showsTurnPicker(for: .timer, ruleSet: .gen9))
         XCTAssertTrue(SpecialtyBallMath.showsTurnPicker(for: .timer, ruleSet: .gen3to4))
         XCTAssertFalse(SpecialtyBallMath.showsTurnPicker(for: .timer, ruleSet: .gen2))
         XCTAssertFalse(SpecialtyBallMath.showsTurnPicker(for: .timer, ruleSet: .gen1))
     }
 
     func testGen9SituationalBallBonusLabels() {
-        var fishing = BallContext()
-        fishing.isFishing = true
+        var waterTerrain = BallContext()
+        waterTerrain.isWaterTerrain = true
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen8to9, context: fishing, species: nil),
-            "Lure Ball: 4× catch rate (fishing)"
+            SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen9, context: waterTerrain, species: nil),
+            "Lure Ball: 4× catch rate (near water)"
         )
 
         var underwater = BallContext()
         underwater.isWaterTerrain = true
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .dive, ruleSet: .gen8to9, context: underwater, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .dive, ruleSet: .gen9, context: underwater, species: nil),
             "Dive Ball: 3.5× catch rate (in water)"
         )
 
         var caught = BallContext()
         caught.isRepeatRegistered = true
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .repeatBall, ruleSet: .gen8to9, context: caught, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .repeatBall, ruleSet: .gen9, context: caught, species: nil),
             "Repeat Ball: 3.5× catch rate (already caught)"
         )
 
         var dark = BallContext()
         dark.isDarkTerrain = true
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .dusk, ruleSet: .gen8to9, context: dark, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .dusk, ruleSet: .gen9, context: dark, species: nil),
             "Dusk Ball: 3× catch rate (night or cave)"
         )
 
@@ -222,7 +232,7 @@ final class SpecialtyBallTests: XCTestCase {
         turnFive.battleTurn = 5
         let timerLabel = SpecialtyBallMath.bonusLabel(
             ball: .timer,
-            ruleSet: .gen8to9,
+            ruleSet: .gen9,
             context: turnFive,
             species: nil
         )
@@ -240,18 +250,18 @@ final class SpecialtyBallTests: XCTestCase {
         var inactive = BallContext()
         inactive.quickBallFirstTurnActive = false
 
-        // Gen 9
+        // Gen 9: B = 5
         XCTAssertEqual(CatchBall.quick.modernBallBonus(generation: .gen9, context: active), 5)
         XCTAssertEqual(CatchBall.quick.modernBallBonus(generation: .gen9, context: inactive), 1)
-        // Gen 4
-        XCTAssertEqual(CatchBall.quick.modernBallBonus(generation: .gen4, context: active), 5)
+        // Gen 4: B = 4 per dragonflycave.com/mechanics/gen-iii-iv-capturing
+        XCTAssertEqual(CatchBall.quick.modernBallBonus(generation: .gen4, context: active), 4)
         XCTAssertEqual(CatchBall.quick.modernBallBonus(generation: .gen4, context: inactive), 1)
 
-        let labelGen9 = SpecialtyBallMath.bonusLabel(ball: .quick, ruleSet: .gen8to9, context: active, species: nil)
+        let labelGen9 = SpecialtyBallMath.bonusLabel(ball: .quick, ruleSet: .gen9, context: active, species: nil)
         XCTAssertEqual(labelGen9, "Quick Ball: 5× catch rate (first turn)")
 
         let labelGen4 = SpecialtyBallMath.bonusLabel(ball: .quick, ruleSet: .gen3to4, context: active, species: nil)
-        XCTAssertEqual(labelGen4, "Quick Ball: 5× catch rate (first turn)")
+        XCTAssertEqual(labelGen4, "Quick Ball: 4× catch rate (first turn)")
 
         XCTAssertNil(SpecialtyBallMath.bonusLabel(ball: .quick, ruleSet: .gen3to4, context: inactive, species: nil))
     }
@@ -271,14 +281,14 @@ final class SpecialtyBallTests: XCTestCase {
         var waterContext = BallContext()
         waterContext.hasWaterOrBugType = true
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen8to9, context: waterContext, species: magikarp),
+            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen9, context: waterContext, species: magikarp),
             "Net Ball: 3.5× catch rate (Water)"
         )
 
         var normalContext = BallContext()
         normalContext.hasWaterOrBugType = false
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen8to9, context: normalContext, species: pikachu),
+            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen9, context: normalContext, species: pikachu),
             "Net Ball: no bonus (Electric — not Water or Bug)"
         )
     }
@@ -287,14 +297,14 @@ final class SpecialtyBallTests: XCTestCase {
         var lowLevel = BallContext()
         lowLevel.targetLevel = 10
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .nest, ruleSet: .gen8to9, context: lowLevel, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .nest, ruleSet: .gen9, context: lowLevel, species: nil),
             "Nest Ball: 3.1× catch rate (target level 10)"
         )
 
         var highLevel = BallContext()
         highLevel.targetLevel = 35
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .nest, ruleSet: .gen8to9, context: highLevel, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .nest, ruleSet: .gen9, context: highLevel, species: nil),
             "Nest Ball: no bonus (target level 35 — need below 30)"
         )
     }
@@ -304,7 +314,7 @@ final class SpecialtyBallTests: XCTestCase {
         strong.playerLevel = 50
         strong.targetLevel = 10
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .level, ruleSet: .gen8to9, context: strong, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .level, ruleSet: .gen9, context: strong, species: nil),
             "Level Ball: 8× catch rate (Lv. 50 vs Lv. 10)"
         )
 
@@ -312,22 +322,29 @@ final class SpecialtyBallTests: XCTestCase {
         weak.playerLevel = 30
         weak.targetLevel = 50
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .level, ruleSet: .gen8to9, context: weak, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .level, ruleSet: .gen9, context: weak, species: nil),
             "Level Ball: no bonus (Lv. 30 vs Lv. 50 — not high enough)"
         )
     }
 
     func testGen3to7BonusLabelsMatchCorrectMultipliers() {
-        // Lure Ball: 5× in Gen 3–7, 4× in Gen 8–9
+        // Lure Ball: in Gen 3–4 (HGSS), modifies species catch rate C by 3× — B = 1.
+        // Gen 5–7: B = 5× when fishing. Gen 8: B = 4× when fishing. Gen 9: B = 4× near water (no fishing).
         var fishing = BallContext()
         fishing.isFishing = true
         XCTAssertEqual(
             SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen3to4, context: fishing, species: nil),
-            "Lure Ball: 5× catch rate (fishing)"
+            "Lure Ball: 3× species catch rate (fishing)"
         )
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen8to9, context: fishing, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen8, context: fishing, species: nil),
             "Lure Ball: 4× catch rate (fishing)"
+        )
+        var waterTerrain = BallContext()
+        waterTerrain.isWaterTerrain = true
+        XCTAssertEqual(
+            SpecialtyBallMath.bonusLabel(ball: .lure, ruleSet: .gen9, context: waterTerrain, species: nil),
+            "Lure Ball: 4× catch rate (near water)"
         )
 
         // Net Ball: 3× in Gen 3–7, 3.5× in Gen 8–9
@@ -339,7 +356,7 @@ final class SpecialtyBallTests: XCTestCase {
             "Net Ball: 3× catch rate (Water)"
         )
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen8to9, context: waterCtx, species: magikarp),
+            SpecialtyBallMath.bonusLabel(ball: .net, ruleSet: .gen9, context: waterCtx, species: magikarp),
             "Net Ball: 3.5× catch rate (Water)"
         )
 
@@ -351,7 +368,7 @@ final class SpecialtyBallTests: XCTestCase {
             "Dusk Ball: 3.5× catch rate (night or cave)"
         )
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .dusk, ruleSet: .gen8to9, context: dark, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .dusk, ruleSet: .gen9, context: dark, species: nil),
             "Dusk Ball: 3× catch rate (night or cave)"
         )
 
@@ -363,7 +380,7 @@ final class SpecialtyBallTests: XCTestCase {
             "Repeat Ball: 3× catch rate (already caught)"
         )
         XCTAssertEqual(
-            SpecialtyBallMath.bonusLabel(ball: .repeatBall, ruleSet: .gen8to9, context: caught, species: nil),
+            SpecialtyBallMath.bonusLabel(ball: .repeatBall, ruleSet: .gen9, context: caught, species: nil),
             "Repeat Ball: 3.5× catch rate (already caught)"
         )
 
